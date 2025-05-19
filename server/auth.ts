@@ -1,42 +1,45 @@
-import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { storage } from './storage';
-import { User } from '@shared/schema';
+import { db } from './config/database';
+import { users } from '../shared/schema';
+import { eq } from 'drizzle-orm';
+import { Request, Response, NextFunction } from 'express';
 
-// Environment variables for JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'ocp-decapage-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const JWT_EXPIRES_IN = '24h';
 
-// Helper function to hash passwords
-export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
+export async function generateToken(user: any) {
+  return jwt.sign(
+    { id: user.id, username: user.username, role: user.role },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
 }
 
-// Helper function to compare passwords
-export async function comparePassword(password: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword);
-}
-
-// Generate JWT token
-export function generateToken(user: User): string {
-  const payload = {
-    id: user.id,
-    username: user.username,
-    role: user.role,
-  };
-
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-}
-
-// Verify JWT token
-export function verifyToken(token: string): any {
+export async function verifyToken(token: string) {
   try {
     return jwt.verify(token, JWT_SECRET);
   } catch (error) {
-    return null;
+    throw new Error('Token invalide');
   }
+}
+
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hashedPassword: string) {
+  return bcrypt.compare(password, hashedPassword);
+}
+
+export async function findUserById(id: number) {
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export async function findUserByUsername(username: string) {
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result[0];
 }
 
 // Authentication middleware
@@ -49,14 +52,14 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
 
     if (!decoded) {
       return res.status(401).json({ message: 'Accès non autorisé: Token invalide' });
     }
 
     // Get user from database
-    const user = await storage.getUser(decoded.id);
+    const user = await findUserById(decoded.id);
     if (!user) {
       return res.status(401).json({ message: 'Accès non autorisé: Utilisateur non trouvé' });
     }
@@ -64,9 +67,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Add user to request object
     (req as any).user = user;
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Authentication error:', error);
-    return res.status(500).json({ message: 'Erreur d\'authentification' });
+    return res.status(500).json({ message: error.message || 'Erreur d\'authentification' });
   }
 }
 
