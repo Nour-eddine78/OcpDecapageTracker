@@ -1,7 +1,8 @@
-
 import { relations } from 'drizzle-orm';
 import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { z } from 'zod';
 
+// Database tables
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   username: varchar('username', { length: 100 }).unique().notNull(),
@@ -69,6 +70,27 @@ export const safetyIncidentsRelations = relations(safetyIncidents, ({ one }) => 
     references: [users.id],
   }),
 }));
+
+// Zod Schemas for validation
+export const insertUserSchema = z.object({
+  username: z.string().min(3).max(100),
+  password: z.string().min(6).max(100),
+  name: z.string().min(2).max(100),
+  role: z.enum(['admin', 'supervisor', 'operator'])
+});
+
+export const insertOperationSchema = z.object({
+  machineId: z.number(),
+  userId: z.number(),
+  methode: z.string(),
+  poste: z.string(),
+  panneau: z.string(),
+  volume: z.number(),
+  metrage: z.number(),
+  rendement: z.number(),
+  disponibilite: z.number(),
+  date: z.date()
+});
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
