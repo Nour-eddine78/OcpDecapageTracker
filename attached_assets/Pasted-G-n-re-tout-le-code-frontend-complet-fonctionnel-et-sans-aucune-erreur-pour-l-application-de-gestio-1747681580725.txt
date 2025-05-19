@@ -1,0 +1,26 @@
+Génère tout le code frontend complet, fonctionnel et sans aucune erreur pour l’application de gestion des opérations de décapage de l’OCP, en respectant scrupuleusement les éléments suivants :
+Inclure l’intégralité du code sans omission pour les répertoires suivants :
+pages (pages principales de l’application)
+components (composants réutilisables)
+layouts (structures communes de mise en page)
+services ou api (gestion des appels à l’API backend avec JWT)
+hooks (hooks personnalisés si nécessaires)
+contexts (gestion globale de l’état, ex. AuthContext)
+utils (fonctions utilitaires comme les calculs automatiques)
+routes.jsx ou router.jsx (routes React avec protection d’accès selon le rôle)
+tailwind.config.js, postcss.config.js, vite.config.js ou webpack.config.js selon l’environnement
+Le design de l’interface doit utiliser React.js avec Tailwind CSS, en adoptant une palette de vert déclinée en différents degrés d’intensité et de nuance, afin de hiérarchiser visuellement les informations (par exemple : emerald-500, green-700, lime-300, etc.).
+Toutes les données doivent être dynamiques : récupérées via API depuis un backend Express.js avec base de données PostgreSQL (aucune donnée en dur).
+Authentification via JWT, avec stockage sécurisé du token (localStorage ou cookies).
+L’interface doit être responsive (adaptée au mobile et tablette).
+Intégrer les fonctionnalités clés :
+Formulaires contextuels intelligents selon la méthode de décapage choisie
+Liste filtrée dynamique des machines
+Tableaux de bord interactifs avec Chart.js
+Calculs automatiques en temps réel (rendement, volume, disponibilité, etc.)
+Système de rôles (admin, superviseur) avec affichage conditionnel
+Export des données en PDF et Excel
+Suivi HSE, audits, historique des actions
+Clonage de fiches et navigation rapide
+Le projet doit être fonctionnel à 100 %, prêt à être exécuté sur Replit ou localement avec un simple npm install && npm run dev.
+Corrige toutes les erreurs potentielles (syntaxe, logique, affichage, performances), sans laisser de faille.

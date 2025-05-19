@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from '@shared/schema';
 import { JWT_SECRET, JWT_EXPIRES_IN, SECURITY } from '../config/constants';
+import { User } from '@shared/schema';
+import crypto from 'crypto';
 
 /**
  * Hache un mot de passe en utilisant bcrypt
@@ -9,25 +10,22 @@ import { JWT_SECRET, JWT_EXPIRES_IN, SECURITY } from '../config/constants';
  * @returns Le mot de passe haché
  */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(SECURITY.PASSWORD_SALT_ROUNDS);
+  const salt = await bcrypt.genSalt(SECURITY.SALT_ROUNDS);
   return bcrypt.hash(password, salt);
 }
 
 /**
- * Compare un mot de passe avec un hash
- * @param password Le mot de passe à vérifier
- * @param hashedPassword Le mot de passe haché à comparer
+ * Compare un mot de passe en clair avec un mot de passe haché
+ * @param password Le mot de passe en clair
+ * @param hashedPassword Le mot de passe haché
  * @returns true si les mots de passe correspondent, false sinon
  */
-export async function comparePassword(
-  password: string,
-  hashedPassword: string
-): Promise<boolean> {
+export async function comparePassword(password: string, hashedPassword: string): Promise<boolean> {
   return bcrypt.compare(password, hashedPassword);
 }
 
 /**
- * Génère un token JWT à partir d'un utilisateur
+ * Génère un token JWT pour un utilisateur
  * @param user L'utilisateur pour lequel générer le token
  * @returns Le token JWT généré
  */
@@ -35,42 +33,59 @@ export function generateToken(user: User): string {
   const payload = {
     id: user.id,
     username: user.username,
+    name: user.name,
     role: user.role
   };
-
+  
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
 /**
- * Vérifie un token JWT
- * @param token Le token à vérifier
- * @returns Le payload décodé si le token est valide
- * @throws JsonWebTokenError si le token est invalide
+ * Vérifie et décode un token JWT
+ * @param token Le token JWT à vérifier
+ * @returns Le payload décodé du token si valide
  */
 export function verifyToken(token: string): any {
-  return jwt.verify(token, JWT_SECRET);
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    throw new Error('Token invalide ou expiré');
+  }
 }
 
 /**
- * Vérifie si un mot de passe est suffisamment fort
- * @param password Le mot de passe à vérifier
- * @returns true si le mot de passe est assez fort, false sinon
- */
-export function isStrongPassword(password: string): boolean {
-  // Au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre
-  const strongRegex = new RegExp(
-    `^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.{${SECURITY.MINIMUM_PASSWORD_LENGTH},})`
-  );
-  return strongRegex.test(password);
-}
-
-/**
- * Génère un identifiant unique pour les objets
- * @param prefix Le préfixe à utiliser (ex: 'OP' pour opération)
- * @returns L'identifiant généré
+ * Génère un identifiant unique pour les objets (machines, opérations, incidents)
+ * @param prefix Préfixe à utiliser (ex: MCH pour machine)
+ * @returns Identifiant unique formaté
  */
 export function generateObjectId(prefix: string): string {
-  const timestamp = new Date().getTime();
-  const randomNum = Math.floor(Math.random() * 10000);
-  return `${prefix}-${timestamp}-${randomNum}`;
+  const timestamp = Date.now().toString().slice(-5);
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `${prefix}-${timestamp}${random}`;
+}
+
+/**
+ * Génère un jeton de réinitialisation de mot de passe
+ * @returns Jeton de réinitialisation
+ */
+export function generateResetToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * Vérifie si un utilisateur est administrateur
+ * @param user L'utilisateur à vérifier
+ * @returns true si l'utilisateur est administrateur, false sinon
+ */
+export function isAdmin(user: User): boolean {
+  return user.role === 'admin';
+}
+
+/**
+ * Vérifie si un utilisateur est superviseur
+ * @param user L'utilisateur à vérifier
+ * @returns true si l'utilisateur est superviseur, false sinon
+ */
+export function isSupervisor(user: User): boolean {
+  return user.role === 'superviseur' || user.role === 'admin';
 }

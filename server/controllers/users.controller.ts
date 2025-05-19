@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import { storage } from '../storage';
-import { hashPassword } from '../utils/auth.utils';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../config/constants';
 import { insertUserSchema } from '@shared/schema';
 import { ZodError } from 'zod';
 import { formatZodError } from '../utils/validation.utils';
+import { hashPassword } from '../utils/auth.utils';
 
 /**
  * Récupère tous les utilisateurs
@@ -15,15 +15,8 @@ export async function getUsers(req: Request, res: Response) {
   try {
     const users = await storage.getUsers();
     
-    // Ne pas renvoyer les mots de passe
-    const sanitizedUsers = users.map(user => ({
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      createdAt: user.createdAt,
-      lastLogin: user.lastLogin
-    }));
+    // Masquer les mots de passe dans la réponse
+    const sanitizedUsers = users.map(({ password, ...user }) => user);
     
     res.status(HTTP_STATUS.OK).json(sanitizedUsers);
   } catch (error) {
@@ -57,15 +50,8 @@ export async function getUserById(req: Request, res: Response) {
       });
     }
     
-    // Ne pas renvoyer le mot de passe
-    const sanitizedUser = {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      createdAt: user.createdAt,
-      lastLogin: user.lastLogin
-    };
+    // Masquer le mot de passe dans la réponse
+    const { password, ...sanitizedUser } = user;
     
     res.status(HTTP_STATUS.OK).json(sanitizedUser);
   } catch (error) {
@@ -90,27 +76,23 @@ export async function createUser(req: Request, res: Response) {
     const existingUser = await storage.getUserByUsername(userData.username);
     if (existingUser) {
       return res.status(HTTP_STATUS.CONFLICT).json({
-        error: ERROR_MESSAGES.USER_ALREADY_EXISTS
+        error: 'Un utilisateur avec ce nom d\'utilisateur existe déjà'
       });
     }
     
+    // S'assurer que le rôle est défini (valeur par défaut si non présent)
+    if (!userData.role) {
+      userData.role = 'utilisateur';
+    }
+    
     // Hacher le mot de passe
-    const hashedPassword = await hashPassword(userData.password);
+    userData.password = await hashPassword(userData.password);
     
     // Créer l'utilisateur
-    const newUser = await storage.createUser({
-      ...userData,
-      password: hashedPassword
-    });
+    const newUser = await storage.createUser(userData);
     
-    // Ne pas renvoyer le mot de passe
-    const sanitizedUser = {
-      id: newUser.id,
-      username: newUser.username,
-      name: newUser.name,
-      role: newUser.role,
-      createdAt: newUser.createdAt
-    };
+    // Masquer le mot de passe dans la réponse
+    const { password, ...sanitizedUser } = newUser;
     
     res.status(HTTP_STATUS.CREATED).json(sanitizedUser);
   } catch (error) {
@@ -151,10 +133,19 @@ export async function updateUser(req: Request, res: Response) {
       });
     }
     
-    // Préparer les données à mettre à jour
-    const updateData: any = { ...req.body };
+    const updateData = { ...req.body };
     
-    // Hacher le mot de passe si présent
+    // Si le nom d'utilisateur est modifié, vérifier qu'il n'existe pas déjà
+    if (updateData.username && updateData.username !== existingUser.username) {
+      const userWithSameUsername = await storage.getUserByUsername(updateData.username);
+      if (userWithSameUsername) {
+        return res.status(HTTP_STATUS.CONFLICT).json({
+          error: 'Un utilisateur avec ce nom d\'utilisateur existe déjà'
+        });
+      }
+    }
+    
+    // Si le mot de passe est fourni, le hacher
     if (updateData.password) {
       updateData.password = await hashPassword(updateData.password);
     }
@@ -168,15 +159,8 @@ export async function updateUser(req: Request, res: Response) {
       });
     }
     
-    // Ne pas renvoyer le mot de passe
-    const sanitizedUser = {
-      id: updatedUser.id,
-      username: updatedUser.username,
-      name: updatedUser.name,
-      role: updatedUser.role,
-      createdAt: updatedUser.createdAt,
-      lastLogin: updatedUser.lastLogin
-    };
+    // Masquer le mot de passe dans la réponse
+    const { password, ...sanitizedUser } = updatedUser;
     
     res.status(HTTP_STATUS.OK).json(sanitizedUser);
   } catch (error) {
@@ -202,6 +186,13 @@ export async function deleteUser(req: Request, res: Response) {
       });
     }
     
+    // Empêcher la suppression de l'utilisateur admin principal (ID 1)
+    if (userId === 1) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        error: 'Impossible de supprimer l\'administrateur principal'
+      });
+    }
+    
     // Vérifier si l'utilisateur existe
     const existingUser = await storage.getUser(userId);
     if (!existingUser) {
@@ -210,16 +201,11 @@ export async function deleteUser(req: Request, res: Response) {
       });
     }
     
-    // Protéger les utilisateurs administrateurs (empêcher la suppression du dernier admin)
-    if (existingUser.role === 'admin') {
-      const users = await storage.getUsers();
-      const adminUsers = users.filter(user => user.role === 'admin');
-      
-      if (adminUsers.length <= 1) {
-        return res.status(HTTP_STATUS.BAD_REQUEST).json({
-          error: 'Impossible de supprimer le dernier administrateur'
-        });
-      }
+    // Vérifier si l'utilisateur qui fait la demande n'essaie pas de se supprimer lui-même
+    if (req.user && req.user.id === userId) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        error: 'Vous ne pouvez pas supprimer votre propre compte'
+      });
     }
     
     // Supprimer l'utilisateur

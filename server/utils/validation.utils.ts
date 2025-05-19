@@ -2,68 +2,107 @@ import { ZodError } from 'zod';
 
 /**
  * Formate les erreurs Zod en un format plus lisible
- * @param error L'erreur Zod à formater
+ * @param error L'erreur ZodError à formater
  * @returns Un objet contenant les erreurs formatées
  */
 export function formatZodError(error: ZodError) {
-  const errors: Record<string, string> = {};
-  
-  error.errors.forEach(err => {
+  const formattedErrors: Record<string, string> = {};
+
+  error.errors.forEach((err) => {
     const path = err.path.join('.');
-    errors[path] = err.message;
+    formattedErrors[path] = err.message;
   });
-  
-  return errors;
+
+  return formattedErrors;
 }
 
 /**
- * Vérifie si une chaîne est un UUID valide
- * @param str La chaîne à vérifier
- * @returns true si c'est un UUID valide, false sinon
+ * Valide un format de date ISO (YYYY-MM-DD)
+ * @param dateString La chaîne de date à valider
+ * @returns true si la date est valide, false sinon
  */
-export function isUUID(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
+export function isValidISODate(dateString: string): boolean {
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  
+  if (!regex.test(dateString)) {
+    return false;
+  }
+  
+  const date = new Date(dateString);
+  return date instanceof Date && !isNaN(date.getTime());
 }
 
 /**
- * Vérifie si une chaîne est un email valide
- * @param email L'email à vérifier
- * @returns true si c'est un email valide, false sinon
+ * Valide un email selon un format standard
+ * @param email L'email à valider
+ * @returns true si l'email est valide, false sinon
  */
 export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return regex.test(email);
 }
 
 /**
- * Formate une date en chaîne ISO
- * @param date La date à formater
- * @returns La date formatée en chaîne ISO
+ * Valide un mot de passe selon des critères de complexité
+ * @param password Le mot de passe à valider
+ * @param minLength Longueur minimale requise (défaut: 8)
+ * @returns Un objet avec un booléen isValid et un message d'erreur si non valide
  */
-export function formatDate(date: Date): string {
-  return date.toISOString();
+export function validatePassword(password: string, minLength = 8): { isValid: boolean; message?: string } {
+  if (password.length < minLength) {
+    return { 
+      isValid: false, 
+      message: `Le mot de passe doit contenir au moins ${minLength} caractères` 
+    };
+  }
+  
+  // Vérifier s'il contient au moins un chiffre
+  if (!/\d/.test(password)) {
+    return { 
+      isValid: false, 
+      message: 'Le mot de passe doit contenir au moins un chiffre' 
+    };
+  }
+  
+  // Vérifier s'il contient au moins une lettre majuscule
+  if (!/[A-Z]/.test(password)) {
+    return { 
+      isValid: false, 
+      message: 'Le mot de passe doit contenir au moins une lettre majuscule' 
+    };
+  }
+  
+  // Vérifier s'il contient au moins une lettre minuscule
+  if (!/[a-z]/.test(password)) {
+    return { 
+      isValid: false, 
+      message: 'Le mot de passe doit contenir au moins une lettre minuscule' 
+    };
+  }
+  
+  return { isValid: true };
 }
 
 /**
- * Convertit une chaîne en nombre si possible
- * @param value La valeur à convertir
- * @param defaultValue Valeur par défaut si la conversion échoue
- * @returns Le nombre converti ou la valeur par défaut
+ * Nettoie une chaîne de caractères pour la sécurité
+ * @param input La chaîne à nettoyer
+ * @returns La chaîne nettoyée
  */
-export function toNumber(value: string | undefined, defaultValue: number = 0): number {
-  if (!value) return defaultValue;
-  const parsed = Number(value);
-  return isNaN(parsed) ? defaultValue : parsed;
+export function sanitizeString(input: string): string {
+  // Supprimer les caractères potentiellement dangereux
+  return input
+    .replace(/<[^>]*>/g, '') // Supprimer les balises HTML
+    .replace(/[^\w\s.,;:!?'"()[\]{}-]/g, ''); // Garder uniquement les caractères alphanumériques et la ponctuation commune
 }
 
 /**
- * Convertit une chaîne en booléen
- * @param value La valeur à convertir
- * @param defaultValue Valeur par défaut si la conversion échoue
- * @returns Le booléen converti ou la valeur par défaut
+ * Valide un identifiant d'objet (format OCP)
+ * @param objectId L'identifiant à valider
+ * @param prefix Le préfixe attendu (ex: 'MCH', 'OP', 'INC')
+ * @returns true si l'identifiant est valide, false sinon
  */
-export function toBoolean(value: string | undefined, defaultValue: boolean = false): boolean {
-  if (!value) return defaultValue;
-  return value.toLowerCase() === 'true';
+export function isValidObjectId(objectId: string, prefix?: string): boolean {
+  // Format: [PRÉFIXE]-[CHIFFRES]
+  const regex = new RegExp(`^${prefix ? prefix + '-' : ''}\\d+$`);
+  return regex.test(objectId);
 }
