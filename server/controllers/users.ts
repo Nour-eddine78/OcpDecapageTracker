@@ -2,34 +2,37 @@ import { Request, Response } from 'express';
 import { storage } from '../storage';
 import { insertUserSchema } from '@shared/schema';
 import { hashPassword, comparePassword, generateToken } from '../auth';
+import { HTTP_STATUS, ERROR_MESSAGES } from '../config/constants';
 
 // Login user
 export async function login(req: Request, res: Response) {
   try {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
-      return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis' });
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
+        message: ERROR_MESSAGES.MISSING_CREDENTIALS 
+      });
     }
-    
+
     const user = await storage.getUserByUsername(username);
     if (!user) {
-      return res.status(401).json({ message: 'Identifiants invalides' });
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+        message: ERROR_MESSAGES.INVALID_CREDENTIALS 
+      });
     }
-    
-    // For simplicity in this demo, we're doing a direct comparison
-    // In production, you'd use bcrypt.compare instead
-    const isPasswordValid = password === user.password;
+
+    const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Identifiants invalides' });
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+        message: ERROR_MESSAGES.INVALID_CREDENTIALS 
+      });
     }
-    
-    // Update last login
+
     await storage.updateUser(user.id, { lastLogin: new Date() });
-    
-    // Generate JWT token
+
     const token = generateToken(user);
-    
+
     res.json({
       user: {
         id: user.id,
@@ -41,7 +44,9 @@ export async function login(req: Request, res: Response) {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+      message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR 
+    });
   }
 }
 
