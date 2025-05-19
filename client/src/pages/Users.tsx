@@ -5,30 +5,18 @@ import Header from "@/components/layout/Header";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { USER_ROLES } from "@/lib/constants";
+import UserForm from "@/components/forms/UserForm";
+import UsersTable from "@/components/tables/UsersTable";
+import StatCard from "@/components/dashboard/StatCard";
 
-const userSchema = z.object({
-  username: z.string().min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères"),
-  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
-  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-  role: z.string().min(1, "Le rôle est requis"),
-});
 
-type UserFormValues = z.infer<typeof userSchema>;
 
 export default function Users() {
   const [showSidebar, setShowSidebar] = useState(false);
-  const [openUserDialog, setOpenUserDialog] = useState(false);
+  const [showUserForm, setShowUserForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
@@ -59,66 +47,12 @@ export default function Users() {
     );
   }
 
-  const form = useForm<UserFormValues>({
-    resolver: zodResolver(userSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-      name: "",
-      role: "supervisor",
-    },
-  });
-
   const { data: users = [] } = useQuery({
     queryKey: ["/api/users"],
   });
 
-  const createUserMutation = useMutation({
-    mutationFn: async (data: UserFormValues) => {
-      return apiRequest("POST", "/api/users", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
-        title: "Utilisateur créé",
-        description: "L'utilisateur a été créé avec succès",
-      });
-      setOpenUserDialog(false);
-      form.reset();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Une erreur est survenue lors de la création de l'utilisateur",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateUserMutation = useMutation({
-    mutationFn: async (data: { id: number; data: Partial<UserFormValues> }) => {
-      return apiRequest("PATCH", `/api/users/${data.id}`, data.data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
-        title: "Utilisateur mis à jour",
-        description: "L'utilisateur a été mis à jour avec succès",
-      });
-      setOpenUserDialog(false);
-      setSelectedUser(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Une erreur est survenue lors de la mise à jour de l'utilisateur",
-        variant: "destructive",
-      });
-    },
-  });
-
   const deleteUserMutation = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string) => {
       return apiRequest("DELETE", `/api/users/${id}`);
     },
     onSuccess: () => {
@@ -137,42 +71,17 @@ export default function Users() {
     },
   });
 
-  const onSubmit = (data: UserFormValues) => {
-    if (selectedUser) {
-      // For update, we don't need to send the password if it's empty (unchanged)
-      const updateData: Partial<UserFormValues> = { ...data };
-      if (!updateData.password) {
-        delete updateData.password;
-      }
-      updateUserMutation.mutate({ id: selectedUser.id, data: updateData });
-    } else {
-      createUserMutation.mutate(data);
-    }
-  };
-
   const handleNewUser = () => {
     setSelectedUser(null);
-    form.reset({
-      username: "",
-      password: "",
-      name: "",
-      role: "supervisor",
-    });
-    setOpenUserDialog(true);
+    setShowUserForm(true);
   };
 
   const handleEditUser = (user: any) => {
     setSelectedUser(user);
-    form.reset({
-      username: user.username,
-      password: "", // Don't show the password
-      name: user.name,
-      role: user.role,
-    });
-    setOpenUserDialog(true);
+    setShowUserForm(true);
   };
 
-  const handleDeleteUser = (id: number) => {
+  const handleDeleteUser = (id: string) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
       deleteUserMutation.mutate(id);
     }
