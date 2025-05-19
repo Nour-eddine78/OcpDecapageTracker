@@ -1,26 +1,25 @@
 import { useState } from "react";
-import { MACHINE_STATUS } from "@/lib/constants";
+import { DECAPAGE_METHODS, MACHINE_STATUS } from "@/lib/constants";
 import { getColorClass } from "@/lib/colors";
 
 type MachineTableProps = {
   machines: any[];
-  onView?: (machine: any) => void;
   onEdit?: (machine: any) => void;
   onDelete?: (id: string) => void;
-  onDownload?: (machine: any) => void;
+  onSelect?: (machine: any) => void;
 };
 
 export default function MachineTable({
   machines,
-  onView,
   onEdit,
   onDelete,
-  onDownload,
+  onSelect
 }: MachineTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMethod, setFilterMethod] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
-  // Filter machines based on search term and method filter
+  // Filter machines based on search term and filters
   const filteredMachines = machines.filter((machine) => {
     const matchesSearch =
       machine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -28,14 +27,49 @@ export default function MachineTable({
       machine.type.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesMethod = filterMethod === "all" || machine.methode === filterMethod;
+    const matchesStatus = filterStatus === "all" || machine.status === filterStatus;
     
-    return matchesSearch && matchesMethod;
+    return matchesSearch && matchesMethod && matchesStatus;
   });
 
-  // Get color class for machine status
-  const getStatusColor = (status: string) => {
-    const statusItem = MACHINE_STATUS.find((item) => item.id === status);
-    return statusItem ? getColorClass(statusItem.color, "text") : "text-gray-500";
+  // Get method name from ID
+  const getMethodName = (methodId: string) => {
+    const method = DECAPAGE_METHODS.find(m => m.id === methodId);
+    return method ? method.name : methodId;
+  };
+
+  // Get status name from ID
+  const getStatusName = (statusId: string) => {
+    const status = MACHINE_STATUS.find(s => s.id === statusId);
+    return status ? status.name : statusId;
+  };
+
+  // Get color for method
+  const getMethodColor = (methodId: string) => {
+    switch (methodId) {
+      case "Transport":
+        return "bg-blue-100 text-blue-800";
+      case "Casement":
+        return "bg-amber-100 text-amber-800";
+      case "Poussage":
+        return "bg-emerald-100 text-emerald-800";
+      default:
+        return "bg-neutral-100 text-neutral-800";
+    }
+  };
+
+  // Get color for status
+  const getStatusColor = (statusId: string) => {
+    switch (statusId) {
+      case "En service":
+        return "bg-green-100 text-green-800";
+      case "En maintenance":
+        return "bg-amber-100 text-amber-800";
+      case "Hors service":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-neutral-100 text-neutral-800";
+    }
   };
 
   return (
@@ -46,7 +80,7 @@ export default function MachineTable({
             <span className="absolute left-3 text-neutral-400 material-icons">search</span>
             <input
               type="text"
-              placeholder="Rechercher..."
+              placeholder="Rechercher une machine..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
@@ -59,9 +93,23 @@ export default function MachineTable({
               className="px-3 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
             >
               <option value="all">Toutes les méthodes</option>
-              <option value="Transport">Transport</option>
-              <option value="Poussage">Poussage</option>
-              <option value="Casement">Casement</option>
+              {DECAPAGE_METHODS.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
+            >
+              <option value="all">Tous les statuts</option>
+              {MACHINE_STATUS.map((status) => (
+                <option key={status.id} value={status.id}>
+                  {status.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -71,7 +119,7 @@ export default function MachineTable({
         <table className="w-full text-left">
           <thead className="bg-neutral-50 text-neutral-600 text-sm">
             <tr>
-              <th className="px-4 py-3 font-medium">ID</th>
+              <th className="px-4 py-3 font-medium">ID Machine</th>
               <th className="px-4 py-3 font-medium">Nom</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Capacité</th>
@@ -83,7 +131,11 @@ export default function MachineTable({
           <tbody className="divide-y divide-neutral-200">
             {filteredMachines.length > 0 ? (
               filteredMachines.map((machine) => (
-                <tr key={machine.id} className="hover:bg-neutral-50">
+                <tr 
+                  key={machine.id} 
+                  className={`hover:bg-neutral-50 ${onSelect ? 'cursor-pointer' : ''}`}
+                  onClick={onSelect ? () => onSelect(machine) : undefined}
+                >
                   <td className="px-4 py-3 text-sm font-medium text-neutral-800">
                     {machine.machineId}
                   </td>
@@ -96,27 +148,18 @@ export default function MachineTable({
                   <td className="px-4 py-3 text-sm text-neutral-600">
                     {machine.capacity}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    <span className="inline-block px-2 py-1 rounded-full bg-neutral-100 text-xs font-medium">
-                      {machine.methode}
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getMethodColor(machine.methode)}`}>
+                      {getMethodName(machine.methode)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <span className={`inline-block ${getStatusColor(machine.status)}`}>
-                      {machine.status}
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(machine.status)}`}>
+                      {getStatusName(machine.status)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <div className="flex space-x-2">
-                      {onView && (
-                        <button
-                          onClick={() => onView(machine)}
-                          className="text-primary-600 hover:text-primary-800"
-                          title="Voir la fiche"
-                        >
-                          <span className="material-icons text-base">visibility</span>
-                        </button>
-                      )}
+                    <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                       {onEdit && (
                         <button
                           onClick={() => onEdit(machine)}
@@ -133,15 +176,6 @@ export default function MachineTable({
                           title="Supprimer"
                         >
                           <span className="material-icons text-base">delete</span>
-                        </button>
-                      )}
-                      {onDownload && (
-                        <button
-                          onClick={() => onDownload(machine)}
-                          className="text-green-600 hover:text-green-800"
-                          title="Télécharger la fiche technique"
-                        >
-                          <span className="material-icons text-base">download</span>
                         </button>
                       )}
                     </div>

@@ -118,252 +118,47 @@ export default function Users() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-primary-100 text-primary-600 mr-4">
-                    <span className="material-icons">person</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-neutral-500">Total Utilisateurs</p>
-                    <p className="text-xl font-semibold text-neutral-800">{users.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard 
+              title="Total Utilisateurs" 
+              value={users.length} 
+              icon="person"
+              iconBgColor="bg-primary-100" 
+              iconColor="text-primary-600" 
+            />
             
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
-                    <span className="material-icons">admin_panel_settings</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-neutral-500">Administrateurs</p>
-                    <p className="text-xl font-semibold text-neutral-800">
-                      {users.filter((u: any) => u.role === "admin").length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard 
+              title="Administrateurs" 
+              value={users.filter((u: any) => u.role === "admin").length} 
+              icon="admin_panel_settings"
+              iconBgColor="bg-blue-100" 
+              iconColor="text-blue-600" 
+            />
             
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-3 rounded-full bg-green-100 text-green-600 mr-4">
-                    <span className="material-icons">support_agent</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-neutral-500">Superviseurs</p>
-                    <p className="text-xl font-semibold text-neutral-800">
-                      {users.filter((u: any) => u.role === "supervisor").length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard 
+              title="Superviseurs" 
+              value={users.filter((u: any) => u.role === "supervisor").length} 
+              icon="support_agent"
+              iconBgColor="bg-green-100" 
+              iconColor="text-green-600" 
+            />
           </div>
 
           {/* Users Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200">
-                <thead className="bg-neutral-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      Utilisateur
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      Nom Complet
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      Rôle
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      Dernière Connexion
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-neutral-200">
-                  {users.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center text-neutral-500">
-                        Aucun utilisateur trouvé
-                      </td>
-                    </tr>
-                  ) : (
-                    users.map((user: any) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white">
-                              <span>{user.name.slice(0, 2).toUpperCase()}</span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-neutral-900">
-                                {user.username}
-                              </div>
-                              <div className="text-sm text-neutral-500">
-                                ID: {user.id}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
-                          {user.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.role === "admin" 
-                              ? "bg-blue-100 text-blue-800" 
-                              : "bg-green-100 text-green-800"
-                          }`}>
-                            {user.role === "admin" ? "Administrateur" : "Superviseur"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-900">
-                          {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "Jamais"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="text-primary-600 hover:text-primary-900 mr-3"
-                          >
-                            <span className="material-icons">edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            disabled={currentUser?.id === user.id}
-                            className={`${
-                              currentUser?.id === user.id 
-                                ? "text-neutral-400 cursor-not-allowed" 
-                                : "text-red-600 hover:text-red-900"
-                            }`}
-                          >
-                            <span className="material-icons">delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <UsersTable
+            users={users}
+            onEdit={handleEditUser}
+            onDelete={handleDeleteUser}
+          />
         </div>
       </main>
 
-      {/* New/Edit User Dialog */}
-      <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{selectedUser ? "Modifier l'utilisateur" : "Nouvel Utilisateur"}</DialogTitle>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nom d'utilisateur</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Entrez le nom d'utilisateur"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{selectedUser ? "Mot de passe (laisser vide pour ne pas changer)" : "Mot de passe"}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder={selectedUser ? "••••••••" : "Entrez le mot de passe"}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nom complet</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Entrez le nom complet"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rôle</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner un rôle" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {USER_ROLES.map(role => (
-                          <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="flex justify-end space-x-3 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setOpenUserDialog(false)}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createUserMutation.isPending || updateUserMutation.isPending}
-                >
-                  {createUserMutation.isPending || updateUserMutation.isPending ? (
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 mr-2 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
-                      {selectedUser ? "Mise à jour..." : "Création..."}
-                    </div>
-                  ) : selectedUser ? "Mettre à jour" : "Créer"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* User Form Modal */}
+      {showUserForm && (
+        <UserForm 
+          onClose={() => setShowUserForm(false)} 
+          userToEdit={selectedUser} 
+        />
+      )}
     </div>
   );
 }
