@@ -10,7 +10,6 @@ export async function findUserById(id: number) {
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result[0] || null;
 }
-export { findUserById };
 
 export async function validateUser(username: string, password: string) {
   const user = await db.select().from(users).where(eq(users.username, username)).limit(1);
