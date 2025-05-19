@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { storage } from '../storage';
-import { insertSafetyIncidentSchema } from '@shared/schema';
+import { insertSafetyIncidentSchema } from '../../shared/schema';
 
 // Get all safety incidents with optional filtering
 export async function getSafetyIncidents(req: Request, res: Response) {

@@ -113,4 +113,18 @@ export type InsertMachine = typeof machines.$inferInsert;
 export type Operation = typeof operations.$inferSelect;
 export type InsertOperation = typeof operations.$inferInsert;
 export type SafetyIncident = typeof safetyIncidents.$inferSelect;
+export const insertSafetyIncidentSchema = z.object({
+  reportId: z.string().optional(),
+  userId: z.number(),
+  type: z.string(),
+  severity: z.string(),
+  description: z.string(),
+  location: z.string(),
+  date: z.date(),
+  status: z.string(),
+  actions: z.string().optional(),
+  resolvedBy: z.number().nullable().optional(),
+  resolvedAt: z.date().nullable().optional()
+});
+
 export type InsertSafetyIncident = typeof safetyIncidents.$inferInsert;
