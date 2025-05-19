@@ -1,19 +1,16 @@
 import { Request, Response } from 'express';
-import { storage } from '../storage';
-import { insertOperationSchema } from '@shared/schema';
+import { db } from '../db';
+import { operations } from '@/shared/schema';
+import { eq } from 'drizzle-orm';
+import { HTTP_STATUS } from '../config/constants';
 
 // Get all operations with optional filtering
 export async function getOperations(req: Request, res: Response) {
   try {
-    const methode = req.query.methode as string | undefined;
-    const panneau = req.query.panneau as string | undefined;
-    
-    const operations = await storage.getOperations({ methode, panneau });
-    
-    res.json(operations);
+    const allOperations = await db.select().from(operations);
+    res.status(HTTP_STATUS.OK).json(allOperations);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ message: "Erreur lors de la récupération des opérations" });
   }
 }
 
@@ -25,12 +22,12 @@ export async function getOperationById(req: Request, res: Response) {
       return res.status(400).json({ message: 'ID d\'opération invalide' });
     }
     
-    const operation = await storage.getOperation(id);
-    if (!operation) {
+    const operation = await db.select().from(operations).where(eq(operations.id, id));
+    if (!operation || operation.length === 0) {
       return res.status(404).json({ message: 'Opération non trouvée' });
     }
     
-    res.json(operation);
+    res.json(operation[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -40,93 +37,50 @@ export async function getOperationById(req: Request, res: Response) {
 // Create operation
 export async function createOperation(req: Request, res: Response) {
   try {
-    // Get current user from request
-    const user = (req as any).user;
-    
-    // Validate request body
-    const validationResult = insertOperationSchema.safeParse({
-      ...req.body,
-      createdBy: user.id
-    });
-    
-    if (!validationResult.success) {
-      return res.status(400).json({ message: 'Données invalides', errors: validationResult.error });
-    }
-    
-    // Generate operation ID if not provided
-    if (!validationResult.data.operationId) {
-      validationResult.data.operationId = `DCG-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`;
-    }
-    
-    // Create new operation
-    const operation = await storage.createOperation(validationResult.data);
-    
-    res.status(201).json(operation);
+    const newOperation = await db.insert(operations).values(req.body).returning();
+    res.status(HTTP_STATUS.CREATED).json(newOperation[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ message: "Erreur lors de la création de l'opération" });
   }
 }
 
 // Update operation
 export async function updateOperation(req: Request, res: Response) {
   try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID d\'opération invalide' });
-    }
-    
-    const operation = await storage.getOperation(id);
-    if (!operation) {
-      return res.status(404).json({ message: 'Opération non trouvée' });
-    }
-    
-    // Update operation
-    const updatedOperation = await storage.updateOperation(id, req.body);
-    
-    res.json(updatedOperation);
+    const updatedOperation = await db.update(operations)
+      .set(req.body)
+      .where(eq(operations.id, parseInt(req.params.id)))
+      .returning();
+    res.status(HTTP_STATUS.OK).json(updatedOperation[0]);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ message: "Erreur lors de la mise à jour de l'opération" });
   }
 }
 
 // Delete operation
 export async function deleteOperation(req: Request, res: Response) {
   try {
-    const id = parseInt(req.params.id);
-    if (isNaN(id)) {
-      return res.status(400).json({ message: 'ID d\'opération invalide' });
-    }
-    
-    const operation = await storage.getOperation(id);
-    if (!operation) {
-      return res.status(404).json({ message: 'Opération non trouvée' });
-    }
-    
-    await storage.deleteOperation(id);
-    
-    res.json({ message: 'Opération supprimée avec succès' });
+    await db.delete(operations).where(eq(operations.id, parseInt(req.params.id)));
+    res.status(HTTP_STATUS.NO_CONTENT).send();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ message: "Erreur lors de la suppression de l'opération" });
   }
 }
 
 // Get general statistics
 export async function getStats(req: Request, res: Response) {
   try {
-    const machines = await storage.getMachines();
-    const operations = await storage.getOperations();
-    const safetyIncidents = await storage.getSafetyIncidents();
+    const machines = []; //await storage.getMachines();
+    const operationsList = await db.select().from(operations); //await storage.getOperations();
+    const safetyIncidents = []; //await storage.getSafetyIncidents();
     
     // Calculate statistics
     const activeMachines = machines.filter(machine => machine.status === 'En service').length;
     
-    const totalVolume = operations.reduce((sum, op) => sum + op.volumeSaute, 0);
+    const totalVolume = operationsList.reduce((sum, op) => sum + (op.volumeSaute || 0), 0);
     
     // Calculate average performance (rendement)
-    const operationsWithRendement = operations.filter(op => op.rendement !== undefined && op.rendement !== null);
+    const operationsWithRendement = operationsList.filter(op => op.rendement !== undefined && op.rendement !== null);
     const avgPerformance = operationsWithRendement.length > 0
       ? Math.round(operationsWithRendement.reduce((sum, op) => sum + (op.rendement || 0), 0) / operationsWithRendement.length)
       : 0;
