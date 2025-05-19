@@ -72,6 +72,20 @@ export const safetyIncidentsRelations = relations(safetyIncidents, ({ one }) => 
 }));
 
 // Zod Schemas for validation
+export const insertMachineSchema = z.object({
+  machineId: z.string().optional(),
+  name: z.string().min(2).max(100),
+  type: z.string().min(2).max(50),
+  status: z.enum(['disponible', 'en_maintenance', 'hors_service']).optional(),
+  specifications: z.object({
+    puissance: z.string().optional(),
+    capaciteCharge: z.string().optional(),
+    annee: z.string().optional(),
+    horaireService: z.string().optional(),
+    consommation: z.string().optional()
+  }).optional()
+});
+
 export const insertUserSchema = z.object({
   username: z.string().min(3).max(100),
   password: z.string().min(6).max(100),
