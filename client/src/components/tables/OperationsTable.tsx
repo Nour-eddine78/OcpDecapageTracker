@@ -1,45 +1,76 @@
 import { useState } from "react";
-import { DECAPAGE_METHODS } from "@/lib/constants";
+import { DECAPAGE_METHODS, POSTES } from "@/lib/constants";
 
 type OperationsTableProps = {
   operations: any[];
-  onView?: (operation: any) => void;
   onEdit?: (operation: any) => void;
   onDelete?: (id: string) => void;
-  onExport?: (operation: any) => void;
+  onView?: (operation: any) => void;
 };
 
 export default function OperationsTable({
   operations,
-  onView,
   onEdit,
   onDelete,
-  onExport,
+  onView,
 }: OperationsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMethod, setFilterMethod] = useState("all");
+  const [filterPoste, setFilterPoste] = useState("all");
+  const [filterPanneau, setFilterPanneau] = useState("");
 
-  // Filter operations based on search term and method filter
+  // Extract unique panneaux for filtering
+  const uniquePanneaux = Array.from(
+    new Set(operations.map((operation) => operation.panneau).filter(Boolean))
+  );
+
+  // Filter operations based on search term and filters
   const filteredOperations = operations.filter((operation) => {
     const matchesSearch =
-      operation.operationId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      operation.machine?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      operation.panneau?.toLowerCase().includes(searchTerm.toLowerCase());
+      operation.operationId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.machine.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.panneau.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.niveau.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.tranche.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesMethod = filterMethod === "all" || operation.methode === filterMethod;
+    const matchesPoste = filterPoste === "all" || operation.poste === filterPoste;
+    const matchesPanneau = !filterPanneau || operation.panneau === filterPanneau;
     
-    return matchesSearch && matchesMethod;
+    return matchesSearch && matchesMethod && matchesPoste && matchesPanneau;
   });
+
+  // Get method name from ID
+  const getMethodName = (methodId: string) => {
+    const method = DECAPAGE_METHODS.find(m => m.id === methodId);
+    return method ? method.name : methodId;
+  };
+
+  // Get poste name from ID
+  const getPosteName = (posteId: string) => {
+    const poste = POSTES.find(p => p.id === posteId);
+    return poste ? poste.name : posteId;
+  };
 
   // Format date for display
   const formatDate = (dateString: string) => {
     if (!dateString) return "-";
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('fr-FR');
+      return date.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
     } catch (e) {
       return dateString;
     }
+  };
+
+  // Format numbers with separators
+  const formatNumber = (num: number, decimals = 2) => {
+    if (num === null || num === undefined) return "-";
+    return num.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   };
 
   return (
@@ -50,13 +81,13 @@ export default function OperationsTable({
             <span className="absolute left-3 text-neutral-400 material-icons">search</span>
             <input
               type="text"
-              placeholder="Rechercher par ID, machine, panneau..."
+              placeholder="Rechercher une opération..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <select
               value={filterMethod}
               onChange={(e) => setFilterMethod(e.target.value)}
@@ -66,6 +97,30 @@ export default function OperationsTable({
               {DECAPAGE_METHODS.map((method) => (
                 <option key={method.id} value={method.id}>
                   {method.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterPoste}
+              onChange={(e) => setFilterPoste(e.target.value)}
+              className="px-3 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
+            >
+              <option value="all">Tous les postes</option>
+              {POSTES.map((poste) => (
+                <option key={poste.id} value={poste.id}>
+                  {poste.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterPanneau}
+              onChange={(e) => setFilterPanneau(e.target.value)}
+              className="px-3 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
+            >
+              <option value="">Tous les panneaux</option>
+              {uniquePanneaux.map((panneau) => (
+                <option key={panneau} value={panneau}>
+                  {panneau}
                 </option>
               ))}
             </select>
@@ -83,14 +138,21 @@ export default function OperationsTable({
               <th className="px-4 py-3 font-medium">Machine</th>
               <th className="px-4 py-3 font-medium">Poste</th>
               <th className="px-4 py-3 font-medium">Panneau</th>
+              <th className="px-4 py-3 font-medium">Volume (m³)</th>
+              <th className="px-4 py-3 font-medium">Métrage (m)</th>
               <th className="px-4 py-3 font-medium">Rendement</th>
+              <th className="px-4 py-3 font-medium">Disponibilité</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
             {filteredOperations.length > 0 ? (
               filteredOperations.map((operation) => (
-                <tr key={operation.id} className="hover:bg-neutral-50">
+                <tr 
+                  key={operation.id} 
+                  className={`hover:bg-neutral-50 ${onView ? 'cursor-pointer' : ''}`}
+                  onClick={onView ? () => onView(operation) : undefined}
+                >
                   <td className="px-4 py-3 text-sm font-medium text-neutral-800">
                     {operation.operationId}
                   </td>
@@ -98,41 +160,31 @@ export default function OperationsTable({
                     {formatDate(operation.date)}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600">
-                    <span className="inline-block px-2 py-1 rounded-full bg-neutral-100 text-xs font-medium">
-                      {operation.methode}
-                    </span>
+                    {getMethodName(operation.methode)}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600">
                     {operation.machine}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600">
-                    Poste {operation.poste}
+                    {getPosteName(operation.poste)}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600">
-                    {operation.panneau}
+                    {operation.panneau || "-"}
                   </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    <div className="flex items-center">
-                      <div className="w-16 bg-neutral-200 rounded-full h-2 mr-2">
-                        <div 
-                          className="bg-primary-500 h-2 rounded-full" 
-                          style={{ width: `${Math.min(100, operation.rendement)}%` }}
-                        ></div>
-                      </div>
-                      <span>{operation.rendement}%</span>
-                    </div>
+                  <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                    {formatNumber(operation.volume)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                    {formatNumber(operation.metrage)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                    {formatNumber(operation.rendement)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600 text-right">
+                    {formatNumber(operation.disponibilite)}%
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <div className="flex space-x-2">
-                      {onView && (
-                        <button
-                          onClick={() => onView(operation)}
-                          className="text-primary-600 hover:text-primary-800"
-                          title="Voir les détails"
-                        >
-                          <span className="material-icons text-base">visibility</span>
-                        </button>
-                      )}
+                    <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                       {onEdit && (
                         <button
                           onClick={() => onEdit(operation)}
@@ -151,13 +203,13 @@ export default function OperationsTable({
                           <span className="material-icons text-base">delete</span>
                         </button>
                       )}
-                      {onExport && (
+                      {onView && (
                         <button
-                          onClick={() => onExport(operation)}
-                          className="text-green-600 hover:text-green-800"
-                          title="Exporter en PDF"
+                          onClick={() => onView(operation)}
+                          className="text-primary-600 hover:text-primary-800"
+                          title="Voir les détails"
                         >
-                          <span className="material-icons text-base">download</span>
+                          <span className="material-icons text-base">visibility</span>
                         </button>
                       )}
                     </div>
@@ -166,7 +218,7 @@ export default function OperationsTable({
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={11} className="px-4 py-8 text-center text-neutral-500">
                   <div className="flex flex-col items-center justify-center">
                     <span className="material-icons text-3xl mb-2">search_off</span>
                     <p>Aucune opération trouvée</p>
@@ -176,6 +228,24 @@ export default function OperationsTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="p-4 border-t border-neutral-200 flex justify-between items-center">
+        <div className="text-sm text-neutral-600">
+          {filteredOperations.length} opération(s) affichée(s)
+        </div>
+        
+        {filteredOperations.length > 0 && (
+          <div className="text-sm text-neutral-600">
+            <span className="font-medium">Moyenne du rendement:</span> {formatNumber(
+              filteredOperations.reduce((sum, op) => sum + (op.rendement || 0), 0) / filteredOperations.length
+            )} m/h
+            <span className="mx-4 text-neutral-300">|</span>
+            <span className="font-medium">Disponibilité moyenne:</span> {formatNumber(
+              filteredOperations.reduce((sum, op) => sum + (op.disponibilite || 0), 0) / filteredOperations.length
+            )}%
+          </div>
+        )}
       </div>
     </div>
   );

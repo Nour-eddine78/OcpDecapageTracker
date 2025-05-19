@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +7,15 @@ import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { DECAPAGE_METHODS, MACHINE_STATUS } from "@/lib/constants";
 
-const formSchema = insertMachineSchema.extend({});
+const formSchema = insertMachineSchema.extend({
+  specifications: z.object({
+    puissance: z.string().optional(),
+    capaciteCharge: z.string().optional(),
+    annee: z.string().optional(),
+    horaireService: z.string().optional(),
+    consommation: z.string().optional(),
+  }).optional(),
+});
 
 type MachineFormValues = z.infer<typeof formSchema>;
 
@@ -21,28 +28,53 @@ export default function MachineForm({
 }) {
   const { toast } = useToast();
 
+  // Set up default values for the form
+  const defaultSpecifications = machineToEdit?.specifications || {};
+  
   const form = useForm<MachineFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      machineId: machineToEdit?.machineId || "",
+      machineId: machineToEdit?.machineId || `M-${new Date().getTime().toString().slice(-6)}`,
       name: machineToEdit?.name || "",
       type: machineToEdit?.type || "",
-      capacity: machineToEdit?.capacity || "",
       methode: machineToEdit?.methode || "Transport",
+      capacity: machineToEdit?.capacity || "",
       status: machineToEdit?.status || "En service",
-      specifications: machineToEdit?.specifications || {},
+      specifications: {
+        puissance: defaultSpecifications.puissance || "",
+        capaciteCharge: defaultSpecifications.capaciteCharge || "",
+        annee: defaultSpecifications.annee || "",
+        horaireService: defaultSpecifications.horaireService || "",
+        consommation: defaultSpecifications.consommation || "",
+      },
     },
   });
 
   const onSubmit = async (data: MachineFormValues) => {
     try {
+      // Clean empty specs fields
+      const specifications: Record<string, string> = {};
+      if (data.specifications) {
+        Object.entries(data.specifications).forEach(([key, value]) => {
+          if (value && value.trim() !== "") {
+            specifications[key] = value;
+          }
+        });
+      }
+      
+      // Only include specifications if we have at least one valid entry
+      const finalData = {
+        ...data,
+        specifications: Object.keys(specifications).length > 0 ? specifications : null,
+      };
+      
       const url = machineToEdit 
         ? `/api/machines/${machineToEdit.id}` 
         : "/api/machines";
       
       const method = machineToEdit ? "PATCH" : "POST";
       
-      await apiRequest(method, url, data);
+      await apiRequest(method, url, finalData);
       
       queryClient.invalidateQueries({ queryKey: ["/api/machines"] });
       toast({
@@ -88,8 +120,8 @@ export default function MachineForm({
               <input
                 type="text"
                 {...form.register("machineId")}
-                placeholder="Ex: TWN-012"
-                className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                readOnly={!!machineToEdit}
+                className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 disabled:bg-neutral-100"
               />
               {form.formState.errors.machineId && (
                 <p className="text-red-500 text-sm mt-1">
@@ -105,7 +137,7 @@ export default function MachineForm({
               <input
                 type="text"
                 {...form.register("name")}
-                placeholder="Ex: Transwine 789D"
+                placeholder="Ex: Bulldozer CAT D11"
                 className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
               />
               {form.formState.errors.name && (
@@ -119,12 +151,12 @@ export default function MachineForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Type
+                Type de machine
               </label>
               <input
                 type="text"
                 {...form.register("type")}
-                placeholder="Ex: Camion, Bulldozer, Excavatrice"
+                placeholder="Ex: Bulldozer, Pelleteuse, Camion, etc."
                 className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
               />
               {form.formState.errors.type && (
@@ -134,25 +166,6 @@ export default function MachineForm({
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Capacité
-              </label>
-              <input
-                type="text"
-                {...form.register("capacity")}
-                placeholder="Ex: 180 tonnes, 35 m³, 850 HP"
-                className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
-              />
-              {form.formState.errors.capacity && (
-                <p className="text-red-500 text-sm mt-1">
-                  {form.formState.errors.capacity.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
                 Méthode de décapage
@@ -170,6 +183,25 @@ export default function MachineForm({
               {form.formState.errors.methode && (
                 <p className="text-red-500 text-sm mt-1">
                   {form.formState.errors.methode.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Capacité
+              </label>
+              <input
+                type="text"
+                {...form.register("capacity")}
+                placeholder="Ex: 60 tonnes, 12m³, etc."
+                className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+              />
+              {form.formState.errors.capacity && (
+                <p className="text-red-500 text-sm mt-1">
+                  {form.formState.errors.capacity.message}
                 </p>
               )}
             </div>
@@ -197,20 +229,72 @@ export default function MachineForm({
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Spécifications (JSON)
-            </label>
-            <textarea
-              {...form.register("specifications")}
-              rows={4}
-              placeholder='{"motorisation": "V12", "annee": 2023, "caracteristiques": ["4x4", "Turbo"]}'
-              className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 font-mono text-sm"
-            />
-            {form.formState.errors.specifications && (
-              <p className="text-red-500 text-sm mt-1">
-                {form.formState.errors.specifications.message}
-              </p>
-            )}
+            <div className="flex items-center mb-4">
+              <h3 className="text-base font-medium text-neutral-800">Spécifications techniques</h3>
+              <div className="flex-grow ml-3 h-px bg-neutral-200"></div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Puissance
+                </label>
+                <input
+                  type="text"
+                  {...form.register("specifications.puissance")}
+                  placeholder="Ex: 850 CV"
+                  className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Capacité de charge
+                </label>
+                <input
+                  type="text"
+                  {...form.register("specifications.capaciteCharge")}
+                  placeholder="Ex: 100 tonnes"
+                  className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Année de fabrication
+                </label>
+                <input
+                  type="text"
+                  {...form.register("specifications.annee")}
+                  placeholder="Ex: 2020"
+                  className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Horaire de service
+                </label>
+                <input
+                  type="text"
+                  {...form.register("specifications.horaireService")}
+                  placeholder="Ex: 24/7, 8h-20h"
+                  className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Consommation
+                </label>
+                <input
+                  type="text"
+                  {...form.register("specifications.consommation")}
+                  placeholder="Ex: 50L/h"
+                  className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-4">

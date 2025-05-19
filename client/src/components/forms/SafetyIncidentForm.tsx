@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,8 +6,8 @@ import { insertSafetyIncidentSchema } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/components/auth/AuthProvider";
 import { INCIDENT_TYPES, INCIDENT_SEVERITY, INCIDENT_STATUS } from "@/lib/constants";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const formSchema = insertSafetyIncidentSchema.extend({});
 
@@ -26,29 +26,41 @@ export default function SafetyIncidentForm({
   const form = useForm<SafetyIncidentFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      incidentId: incidentToEdit?.incidentId || `INC-${new Date().getTime().toString().slice(-6)}`,
       date: incidentToEdit?.date || new Date().toISOString().split("T")[0],
       type: incidentToEdit?.type || "HSE",
       severity: incidentToEdit?.severity || "Moyen",
+      status: incidentToEdit?.status || "Ouvert",
       location: incidentToEdit?.location || "",
       description: incidentToEdit?.description || "",
       actions: incidentToEdit?.actions || "",
-      status: incidentToEdit?.status || "Ouvert",
-      reportedBy: incidentToEdit?.reportedBy || (user ? user.id : 1),
+      reportedBy: incidentToEdit?.reportedBy || user?.id || 0,
+      resolvedBy: incidentToEdit?.resolvedBy || null,
+      resolvedAt: incidentToEdit?.resolvedAt || null,
     },
   });
 
+  // Watch for status changes to control resolution fields
+  const watchStatus = form.watch("status");
+  const isResolved = watchStatus === "Résolu";
+
   const onSubmit = async (data: SafetyIncidentFormValues) => {
     try {
+      // If status is "Resolved", add resolution info
+      if (isResolved && !incidentToEdit?.resolvedAt) {
+        data.resolvedBy = user?.id || null;
+        data.resolvedAt = new Date().toISOString();
+      } else if (!isResolved) {
+        // If changing from resolved to unresolved, clear resolution info
+        data.resolvedBy = null;
+        data.resolvedAt = null;
+      }
+      
       const url = incidentToEdit 
         ? `/api/safety/${incidentToEdit.id}` 
         : "/api/safety";
       
       const method = incidentToEdit ? "PATCH" : "POST";
-      
-      // If a new incident being created, add an incidentId
-      if (!incidentToEdit) {
-        data.incidentId = `INC-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`;
-      }
       
       await apiRequest(method, url, data);
       
@@ -57,7 +69,7 @@ export default function SafetyIncidentForm({
         title: incidentToEdit ? "Incident mis à jour" : "Incident créé",
         description: incidentToEdit 
           ? "L'incident a été mis à jour avec succès." 
-          : "Nouvel incident de sécurité enregistré.",
+          : "Nouvel incident enregistré.",
       });
       onClose();
     } catch (error) {
@@ -95,15 +107,20 @@ export default function SafetyIncidentForm({
               </label>
               <input
                 type="text"
-                value={incidentToEdit?.incidentId || "INC-" + new Date().getFullYear() + "-" + Math.floor(Math.random() * 10000)}
-                className="bg-neutral-100 w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300"
-                readOnly
+                {...form.register("incidentId")}
+                readOnly={!!incidentToEdit}
+                className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200 disabled:bg-neutral-100"
               />
+              {form.formState.errors.incidentId && (
+                <p className="text-red-500 text-sm mt-1">
+                  {form.formState.errors.incidentId.message}
+                </p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Date de l'incident
+                Date
               </label>
               <input
                 type="date"
@@ -190,7 +207,7 @@ export default function SafetyIncidentForm({
             <input
               type="text"
               {...form.register("location")}
-              placeholder="Ex: Panneau P-25, Niveau N-120"
+              placeholder="Ex: Zone Nord, Panneau 3"
               className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
             />
             {form.formState.errors.location && (
@@ -202,12 +219,12 @@ export default function SafetyIncidentForm({
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Description
+              Description de l'incident
             </label>
             <textarea
               {...form.register("description")}
               rows={4}
-              placeholder="Décrivez l'incident en détail..."
+              placeholder="Décrivez en détail l'incident qui s'est produit..."
               className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
             />
             {form.formState.errors.description && (
@@ -224,7 +241,11 @@ export default function SafetyIncidentForm({
             <textarea
               {...form.register("actions")}
               rows={3}
-              placeholder="Actions entreprises ou à entreprendre..."
+              placeholder={
+                isResolved
+                  ? "Décrivez les actions qui ont été entreprises pour résoudre l'incident..."
+                  : "Décrivez les actions planifiées pour résoudre l'incident..."
+              }
               className="w-full px-4 py-2 rounded-md text-neutral-800 border border-neutral-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
             />
             {form.formState.errors.actions && (
@@ -233,6 +254,24 @@ export default function SafetyIncidentForm({
               </p>
             )}
           </div>
+
+          {isResolved && (
+            <div className="p-4 mb-6 bg-green-50 rounded-lg border border-green-100">
+              <div className="flex items-center mb-2">
+                <span className="material-icons text-green-600 mr-2">check_circle</span>
+                <h3 className="font-medium text-green-800">Information de résolution</h3>
+              </div>
+              <p className="text-sm text-green-700 mb-1">
+                <strong>Résolu par :</strong> {user?.name || "Utilisateur actuel"}
+              </p>
+              <p className="text-sm text-green-700">
+                <strong>Date de résolution :</strong>{" "}
+                {incidentToEdit?.resolvedAt
+                  ? new Date(incidentToEdit.resolvedAt).toLocaleString()
+                  : new Date().toLocaleString()}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end space-x-4">
             <button
