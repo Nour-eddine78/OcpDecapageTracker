@@ -1,64 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 142.1 76.2% 36.3%;
-    --radius: 0.5rem;
-  }
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+:root {
+  --primary: #10b981;
+  --primary-dark: #059669;
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-neutral-50 text-neutral-900;
   }
-}
 
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 300 700;
-  font-display: swap;
-  src: url(https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap);
+  h1 {
+    @apply text-2xl font-bold;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+  }
 }
 
 @layer components {
-  .sidebar-link {
-    @apply flex items-center px-4 py-3 text-neutral-700 hover:bg-neutral-100 rounded-md transition-colors;
+  .btn-primary {
+    @apply bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors;
   }
-  
-  .sidebar-link.active {
-    @apply bg-primary-100 text-primary-700 border-l-4 border-primary-600;
+
+  .btn-secondary {
+    @apply bg-white text-emerald-600 border border-emerald-600 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors;
   }
-  
-  .chart-container {
-    @apply h-[300px] w-full;
+
+  .card {
+    @apply bg-white rounded-lg shadow p-6;
   }
-  
-  .form-transition {
-    @apply transition-all duration-300 ease-in-out;
+
+  .input {
+    @apply w-full border border-neutral-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500;
+  }
+
+  .table {
+    @apply w-full border-collapse;
+  }
+
+  .table th {
+    @apply bg-neutral-50 text-left p-4 font-medium text-neutral-600;
+  }
+
+  .table td {
+    @apply border-t border-neutral-200 p-4;
+  }
+
+  .alert-success {
+    @apply bg-emerald-50 text-emerald-700 p-4 rounded-lg;
+  }
+
+  .alert-error {
+    @apply bg-red-50 text-red-700 p-4 rounded-lg;
   }
 }

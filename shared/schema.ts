@@ -1,46 +1,80 @@
-import { pgTable, text, timestamp, integer, boolean, serial, real } from 'drizzle-orm/pg-core';
+
+import { relations } from 'drizzle-orm';
+import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
-  username: text('username').notNull().unique(),
-  password: text('password').notNull(),
-  role: text('role', { enum: ['admin', 'supervisor', 'user'] }).notNull().default('user'),
+  username: varchar('username', { length: 100 }).unique().notNull(),
+  password: varchar('password', { length: 100 }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(),
   createdAt: timestamp('created_at').defaultNow()
 });
 
 export const machines = pgTable('machines', {
   id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  type: text('type').notNull(),
-  status: text('status', { enum: ['active', 'maintenance', 'inactive'] }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull(),
+  disponibilite: integer('disponibilite').notNull(),
   lastMaintenance: timestamp('last_maintenance'),
-  hoursWorked: real('hours_worked').default(0),
+  nextMaintenance: timestamp('next_maintenance'),
   createdAt: timestamp('created_at').defaultNow()
 });
 
 export const operations = pgTable('operations', {
   id: serial('id').primaryKey(),
-  methode: text('methode').notNull(),
-  machine_id: integer('machine_id').references(() => machines.id),
-  operateur_id: integer('operateur_id').references(() => users.id),
-  volume: real('volume').notNull(),
-  duree: real('duree').notNull(),
-  rendement: real('rendement'),
-  status: text('status', { enum: ['en_cours', 'termine', 'annule'] }).notNull(),
-  date_debut: timestamp('date_debut').notNull(),
-  date_fin: timestamp('date_fin'),
+  operationId: varchar('operation_id', { length: 100 }).unique().notNull(),
+  machineId: integer('machine_id').references(() => machines.id).notNull(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  methode: varchar('methode', { length: 50 }).notNull(),
+  poste: varchar('poste', { length: 50 }).notNull(),
+  panneau: varchar('panneau', { length: 100 }).notNull(),
+  volume: integer('volume').notNull(),
+  metrage: integer('metrage').notNull(),
+  rendement: integer('rendement').notNull(),
+  disponibilite: integer('disponibilite').notNull(),
+  date: timestamp('date').notNull(),
   createdAt: timestamp('created_at').defaultNow()
 });
 
-export const safety_incidents = pgTable('safety_incidents', {
+export const safetyIncidents = pgTable('safety_incidents', {
   id: serial('id').primaryKey(),
-  operation_id: integer('operation_id').references(() => operations.id),
-  type: text('type').notNull(),
+  reportId: varchar('report_id', { length: 100 }).unique().notNull(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  type: varchar('type', { length: 50 }).notNull(),
+  severity: varchar('severity', { length: 50 }).notNull(),
   description: text('description').notNull(),
-  severity: text('severity', { enum: ['low', 'medium', 'high', 'critical'] }).notNull(),
-  status: text('status', { enum: ['open', 'investigating', 'resolved'] }).notNull(),
-  reporter_id: integer('reporter_id').references(() => users.id),
-  date_reported: timestamp('date_reported').notNull(),
-  date_resolved: timestamp('date_resolved'),
+  location: varchar('location', { length: 100 }).notNull(),
+  date: timestamp('date').notNull(),
+  status: varchar('status', { length: 50 }).notNull(),
+  actions: text('actions'),
   createdAt: timestamp('created_at').defaultNow()
 });
+
+export const operationsRelations = relations(operations, ({ one }) => ({
+  machine: one(machines, {
+    fields: [operations.machineId],
+    references: [machines.id],
+  }),
+  user: one(users, {
+    fields: [operations.userId],
+    references: [users.id],
+  }),
+}));
+
+export const safetyIncidentsRelations = relations(safetyIncidents, ({ one }) => ({
+  user: one(users, {
+    fields: [safetyIncidents.userId],
+    references: [users.id],
+  }),
+}));
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type Machine = typeof machines.$inferSelect;
+export type InsertMachine = typeof machines.$inferInsert;
+export type Operation = typeof operations.$inferSelect;
+export type InsertOperation = typeof operations.$inferInsert;
+export type SafetyIncident = typeof safetyIncidents.$inferSelect;
+export type InsertSafetyIncident = typeof safetyIncidents.$inferInsert;
