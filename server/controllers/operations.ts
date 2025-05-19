@@ -1,20 +1,18 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { operations } from '@/shared/schema';
-import { eq } from 'drizzle-orm';
+import { operations, machines, safetyIncidents } from '../../shared/schema';
+import { eq, and, gte } from 'drizzle-orm';
 import { HTTP_STATUS } from '../config/constants';
 
-// Get all operations with optional filtering
 export async function getOperations(req: Request, res: Response) {
   try {
     const allOperations = await db.select().from(operations);
-    res.status(HTTP_STATUS.OK).json(allOperations);
+    res.json(allOperations);
   } catch (error) {
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ message: "Erreur lors de la récupération des opérations" });
+    res.status(500).json({ message: "Erreur lors de la récupération des opérations" });
   }
 }
 
-// Get operation by ID
 export async function getOperationById(req: Request, res: Response) {
   try {
     const id = parseInt(req.params.id);
@@ -67,82 +65,96 @@ export async function deleteOperation(req: Request, res: Response) {
   }
 }
 
-// Get general statistics
+export async function getPerformanceStats(req: Request, res: Response) {
+  try {
+    const { timeRange, methodFilter } = req.query;
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - getDaysFromRange(timeRange as string));
+
+    const query = db.select({
+      date: operations.date,
+      rendement: operations.rendement,
+      disponibilite: operations.disponibilite,
+      volume: operations.volumeSaute,
+      metrage: operations.metrage
+    })
+    .from(operations)
+    .where(
+      and(
+        gte(operations.date, daysAgo),
+        methodFilter !== 'all' ? eq(operations.methode, methodFilter as string) : undefined
+      )
+    )
+    .orderBy(operations.date);
+
+    const stats = await query;
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: "Erreur lors de la récupération des statistiques" });
+  }
+}
+
+export async function getVolumeStats(req: Request, res: Response) {
+  try {
+    const { timeRange, methodFilter } = req.query;
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - getDaysFromRange(timeRange as string));
+
+    const stats = await db.select({
+      date: operations.date,
+      volume: operations.volumeSaute,
+      metrage: operations.metrage
+    })
+    .from(operations)
+    .where(
+      and(
+        gte(operations.date, daysAgo),
+        methodFilter !== 'all' ? eq(operations.methode, methodFilter as string) : undefined
+      )
+    )
+    .orderBy(operations.date);
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: "Erreur lors de la récupération des statistiques de volume" });
+  }
+}
+
 export async function getStats(req: Request, res: Response) {
   try {
-    const machines = await db.select().from(machines);
-    const operationsList = await db.select().from(operations);
-    const safetyIncidents = await db.select().from(safetyIncidents);
-
-    // Calculate statistics
-    const activeMachines = machines.filter(machine => machine.status === 'En service').length;
-
-    const totalVolume = operationsList.reduce((sum, op) => sum + (op.volumeSaute || 0), 0);
-
-    // Calculate average performance (rendement)
-    const operationsWithRendement = operationsList.filter(op => op.rendement !== undefined && op.rendement !== null);
-    const avgPerformance = operationsWithRendement.length > 0
-      ? Math.round(operationsWithRendement.reduce((sum, op) => sum + (op.rendement || 0), 0) / operationsWithRendement.length)
-      : 0;
-
-    // Count incidents in the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const recentIncidents = safetyIncidents.filter(
-      incident => new Date(incident.createdAt) >= thirtyDaysAgo
-    ).length;
+    const [machines, operations, incidents] = await Promise.all([
+      db.select().from(machines),
+      db.select().from(operations).where(gte(operations.date, thirtyDaysAgo)),
+      db.select().from(safetyIncidents).where(gte(safetyIncidents.date, thirtyDaysAgo))
+    ]);
+
+    const activeMachines = machines.filter(m => m.status === 'En service').length;
+    const totalVolume = operations.reduce((sum, op) => sum + (op.volumeSaute || 0), 0);
+    const avgPerformance = operations.length > 0
+      ? Math.round(operations.reduce((sum, op) => sum + (op.rendement || 0), 0) / operations.length)
+      : 0;
 
     res.json({
       activeMachines,
-      volume: totalVolume,
+      totalVolume,
       avgPerformance: `${avgPerformance}%`,
-      incidents: recentIncidents
+      recentIncidents: incidents.length
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(500).json({ message: "Erreur lors de la récupération des statistiques générales" });
   }
 }
 
-// Get performance statistics for charts
-export async function getPerformanceStats(req: Request, res: Response) {
-  try {
-    const timeRange = req.query.timeRange as string || 'month';
-    const methodFilter = req.query.methodFilter as string || 'all';
-
-    // Récupérer les vraies données de performance depuis la base de données
-    const performanceData = await db
-      .select({
-        rendement: operations.rendement,
-        disponibilite: operations.disponibilite,
-        date: operations.date,
-      })
-      .from(operations)
-      .where(operations.date >= new Date(Date.now() - getDaysFromRange(timeRange) * 24 * 60 * 60 * 1000))
-      .orderBy(operations.date);
-
-    res.json(performanceData);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-}
-
-// Get volume statistics for charts
-export async function getVolumeStats(req: Request, res: Response) {
-  try {
-    const timeRange = req.query.timeRange as string || 'month';
-    const methodFilter = req.query.methodFilter as string || 'all';
-
-    // Generate sample data for charts
-    // In a real app, this would query and aggregate real data
-    const volumeData = generateVolumeData(timeRange, methodFilter);
-
-    res.json(volumeData);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur serveur' });
+function getDaysFromRange(timeRange: string = 'month'): number {
+  switch (timeRange) {
+    case 'week': return 7;
+    case 'month': return 30;
+    case 'quarter': return 90;
+    case 'year': return 365;
+    default: return 30;
   }
 }
 
@@ -159,16 +171,6 @@ export async function getProgressStats(req: Request, res: Response) {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Erreur serveur' });
-  }
-}
-
-function getDaysFromRange(timeRange: string): number {
-  switch (timeRange) {
-    case 'week': return 7;
-    case 'month': return 30;
-    case 'quarter': return 90;
-    case 'year': return 365;
-    default: return 30;
   }
 }
 
@@ -212,3 +214,13 @@ function generateProgressData(site: string) {
 
   return data;
 }
+
+function getTimeRangeDays(timeRange: string): number {
+    switch (timeRange) {
+      case 'week': return 7;
+      case 'month': return 30;
+      case 'quarter': return 90;
+      case 'year': return 365;
+      default: return 30;
+    }
+  }
