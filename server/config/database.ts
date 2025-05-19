@@ -2,6 +2,8 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 import * as schema from '../../shared/schema';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 if (!process.env.DATABASE_URL) {

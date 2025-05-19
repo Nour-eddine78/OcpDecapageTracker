@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { db } from './db';
-import { users } from '@/shared/schema';
+import { users } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import { JWT_SECRET, JWT_EXPIRES_IN, SECURITY } from './config/constants';
 

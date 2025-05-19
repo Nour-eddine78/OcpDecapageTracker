@@ -37,9 +37,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const PORT = process.env.PORT || 5000;
-const server = await registerRoutes(app);
-server.listen(PORT, '0.0.0.0', () => {
+  const PORT = process.env.PORT || 5000const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${PORT}`);
 });
 
