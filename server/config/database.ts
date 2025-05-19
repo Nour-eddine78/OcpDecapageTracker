@@ -1,7 +1,8 @@
 
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import pkg from 'pg';
+const { Pool } = pkg;
 import * as schema from '../../shared/schema';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL doit être défini dans les variables d\'environnement');
