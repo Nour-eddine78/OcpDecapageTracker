@@ -1,41 +1,45 @@
 import { useState } from "react";
-import { MACHINE_STATUS } from "@/lib/constants";
-import { getColorClass } from "@/lib/colors";
+import { DECAPAGE_METHODS } from "@/lib/constants";
 
-type MachineTableProps = {
-  machines: any[];
-  onView?: (machine: any) => void;
-  onEdit?: (machine: any) => void;
+type OperationsTableProps = {
+  operations: any[];
+  onView?: (operation: any) => void;
+  onEdit?: (operation: any) => void;
   onDelete?: (id: string) => void;
-  onDownload?: (machine: any) => void;
+  onExport?: (operation: any) => void;
 };
 
-export default function MachineTable({
-  machines,
+export default function OperationsTable({
+  operations,
   onView,
   onEdit,
   onDelete,
-  onDownload,
-}: MachineTableProps) {
+  onExport,
+}: OperationsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMethod, setFilterMethod] = useState("all");
 
-  // Filter machines based on search term and method filter
-  const filteredMachines = machines.filter((machine) => {
+  // Filter operations based on search term and method filter
+  const filteredOperations = operations.filter((operation) => {
     const matchesSearch =
-      machine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.machineId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.type.toLowerCase().includes(searchTerm.toLowerCase());
+      operation.operationId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.machine?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      operation.panneau?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesMethod = filterMethod === "all" || machine.methode === filterMethod;
+    const matchesMethod = filterMethod === "all" || operation.methode === filterMethod;
     
     return matchesSearch && matchesMethod;
   });
 
-  // Get color class for machine status
-  const getStatusColor = (status: string) => {
-    const statusItem = MACHINE_STATUS.find((item) => item.id === status);
-    return statusItem ? getColorClass(statusItem.color, "text") : "text-gray-500";
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "-";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('fr-FR');
+    } catch (e) {
+      return dateString;
+    }
   };
 
   return (
@@ -46,7 +50,7 @@ export default function MachineTable({
             <span className="absolute left-3 text-neutral-400 material-icons">search</span>
             <input
               type="text"
-              placeholder="Rechercher..."
+              placeholder="Rechercher par ID, machine, panneau..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
@@ -59,9 +63,11 @@ export default function MachineTable({
               className="px-3 py-2 rounded-md border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-500"
             >
               <option value="all">Toutes les méthodes</option>
-              <option value="Transport">Transport</option>
-              <option value="Poussage">Poussage</option>
-              <option value="Casement">Casement</option>
+              {DECAPAGE_METHODS.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -72,54 +78,64 @@ export default function MachineTable({
           <thead className="bg-neutral-50 text-neutral-600 text-sm">
             <tr>
               <th className="px-4 py-3 font-medium">ID</th>
-              <th className="px-4 py-3 font-medium">Nom</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 font-medium">Capacité</th>
+              <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Méthode</th>
-              <th className="px-4 py-3 font-medium">Statut</th>
+              <th className="px-4 py-3 font-medium">Machine</th>
+              <th className="px-4 py-3 font-medium">Poste</th>
+              <th className="px-4 py-3 font-medium">Panneau</th>
+              <th className="px-4 py-3 font-medium">Rendement</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200">
-            {filteredMachines.length > 0 ? (
-              filteredMachines.map((machine) => (
-                <tr key={machine.id} className="hover:bg-neutral-50">
+            {filteredOperations.length > 0 ? (
+              filteredOperations.map((operation) => (
+                <tr key={operation.id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3 text-sm font-medium text-neutral-800">
-                    {machine.machineId}
+                    {operation.operationId}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-700">
-                    {machine.name}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    {machine.type}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-neutral-600">
-                    {machine.capacity}
+                    {formatDate(operation.date)}
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-600">
                     <span className="inline-block px-2 py-1 rounded-full bg-neutral-100 text-xs font-medium">
-                      {machine.methode}
+                      {operation.methode}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`inline-block ${getStatusColor(machine.status)}`}>
-                      {machine.status}
-                    </span>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    {operation.machine}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    Poste {operation.poste}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    {operation.panneau}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    <div className="flex items-center">
+                      <div className="w-16 bg-neutral-200 rounded-full h-2 mr-2">
+                        <div 
+                          className="bg-primary-500 h-2 rounded-full" 
+                          style={{ width: `${Math.min(100, operation.rendement)}%` }}
+                        ></div>
+                      </div>
+                      <span>{operation.rendement}%</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <div className="flex space-x-2">
                       {onView && (
                         <button
-                          onClick={() => onView(machine)}
+                          onClick={() => onView(operation)}
                           className="text-primary-600 hover:text-primary-800"
-                          title="Voir la fiche"
+                          title="Voir les détails"
                         >
                           <span className="material-icons text-base">visibility</span>
                         </button>
                       )}
                       {onEdit && (
                         <button
-                          onClick={() => onEdit(machine)}
+                          onClick={() => onEdit(operation)}
                           className="text-amber-600 hover:text-amber-800"
                           title="Modifier"
                         >
@@ -128,18 +144,18 @@ export default function MachineTable({
                       )}
                       {onDelete && (
                         <button
-                          onClick={() => onDelete(machine.id)}
+                          onClick={() => onDelete(operation.id)}
                           className="text-red-600 hover:text-red-800"
                           title="Supprimer"
                         >
                           <span className="material-icons text-base">delete</span>
                         </button>
                       )}
-                      {onDownload && (
+                      {onExport && (
                         <button
-                          onClick={() => onDownload(machine)}
+                          onClick={() => onExport(operation)}
                           className="text-green-600 hover:text-green-800"
-                          title="Télécharger la fiche technique"
+                          title="Exporter en PDF"
                         >
                           <span className="material-icons text-base">download</span>
                         </button>
@@ -150,10 +166,10 @@ export default function MachineTable({
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-neutral-500">
                   <div className="flex flex-col items-center justify-center">
                     <span className="material-icons text-3xl mb-2">search_off</span>
-                    <p>Aucune machine trouvée</p>
+                    <p>Aucune opération trouvée</p>
                   </div>
                 </td>
               </tr>
