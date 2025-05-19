@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
 import { storage } from '../storage';
+import { comparePassword, hashPassword, generateToken } from '../utils/auth.utils';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../config/constants';
-import { comparePassword, generateToken, hashPassword } from '../utils/auth.utils';
+import { SECURITY } from '../config/constants';
 import { insertUserSchema } from '@shared/schema';
-import { ZodError } from 'zod';
-import { formatZodError } from '../utils/validation.utils';
 
 /**
  * Fonction de connexion d'un utilisateur
@@ -15,10 +14,10 @@ export async function login(req: Request, res: Response) {
   try {
     const { username, password } = req.body;
     
-    // Vérifier si les champs requis sont présents
+    // Vérifier que les identifiants sont fournis
     if (!username || !password) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({
-        error: 'Le nom d\'utilisateur et le mot de passe sont requis'
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({ 
+        error: ERROR_MESSAGES.MISSING_CREDENTIALS 
       });
     }
     
@@ -27,8 +26,8 @@ export async function login(req: Request, res: Response) {
     
     // Vérifier si l'utilisateur existe
     if (!user) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-        error: ERROR_MESSAGES.INVALID_CREDENTIALS
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+        error: ERROR_MESSAGES.INVALID_CREDENTIALS 
       });
     }
     
@@ -36,33 +35,41 @@ export async function login(req: Request, res: Response) {
     const isPasswordValid = await comparePassword(password, user.password);
     
     if (!isPasswordValid) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-        error: ERROR_MESSAGES.INVALID_CREDENTIALS
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+        error: ERROR_MESSAGES.INVALID_CREDENTIALS 
       });
     }
     
     // Mettre à jour la date de dernière connexion
-    const updatedUser = await storage.updateUser(user.id, {
-      lastLogin: new Date()
+    await storage.updateUser(user.id, { 
+      lastLogin: new Date() 
     });
     
     // Générer un token JWT
     const token = generateToken(user);
     
+    // Définir le cookie avec le token
+    res.cookie(SECURITY.COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 heures
+    });
+    
     // Envoyer la réponse
     res.status(HTTP_STATUS.OK).json({
-      token,
+      message: 'Connexion réussie',
       user: {
         id: user.id,
         username: user.username,
         name: user.name,
         role: user.role
-      }
+      },
+      token
     });
   } catch (error) {
-    console.error('Erreur lors de la connexion:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    console.error('Erreur de connexion:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR 
     });
   }
 }
@@ -74,50 +81,41 @@ export async function login(req: Request, res: Response) {
  */
 export async function register(req: Request, res: Response) {
   try {
-    // Vérifier si l'utilisateur qui fait la demande est un administrateur
-    if (!req.user || req.user.role !== 'admin') {
-      return res.status(HTTP_STATUS.FORBIDDEN).json({
-        error: ERROR_MESSAGES.ADMIN_REQUIRED
-      });
-    }
-    
     // Valider les données avec Zod
-    const userData = insertUserSchema.parse(req.body);
+    const validatedData = insertUserSchema.parse(req.body);
     
-    // Vérifier si un utilisateur avec ce nom d'utilisateur existe déjà
-    const existingUser = await storage.getUserByUsername(userData.username);
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await storage.getUserByUsername(validatedData.username);
+    
     if (existingUser) {
-      return res.status(HTTP_STATUS.CONFLICT).json({
-        error: 'Un utilisateur avec ce nom d\'utilisateur existe déjà'
+      return res.status(HTTP_STATUS.CONFLICT).json({ 
+        error: ERROR_MESSAGES.USER_EXISTS 
       });
-    }
-    
-    // S'assurer que le rôle est défini (valeur par défaut si non présent)
-    if (!userData.role) {
-      userData.role = 'utilisateur';
     }
     
     // Hacher le mot de passe
-    userData.password = await hashPassword(userData.password);
+    const hashedPassword = await hashPassword(validatedData.password);
     
-    // Créer l'utilisateur
-    const newUser = await storage.createUser(userData);
+    // Créer l'utilisateur avec le mot de passe haché
+    const user = await storage.createUser({
+      ...validatedData,
+      password: hashedPassword
+    });
     
-    // Masquer le mot de passe dans la réponse
-    const { password, ...sanitizedUser } = newUser;
-    
-    res.status(HTTP_STATUS.CREATED).json(sanitizedUser);
+    // Envoyer la réponse sans le mot de passe
+    res.status(HTTP_STATUS.CREATED).json({
+      message: 'Utilisateur créé avec succès',
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role
+      }
+    });
   } catch (error) {
-    if (error instanceof ZodError) {
-      return res.status(HTTP_STATUS.BAD_REQUEST).json({
-        error: 'Validation error',
-        details: formatZodError(error)
-      });
-    }
-    
-    console.error('Erreur lors de l\'enregistrement:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    console.error('Erreur lors de la création de l\'utilisateur:', error);
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR 
     });
   }
 }
@@ -129,25 +127,45 @@ export async function register(req: Request, res: Response) {
  */
 export async function checkAuth(req: Request, res: Response) {
   try {
-    if (!req.user) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-        error: ERROR_MESSAGES.UNAUTHORIZED
+    // Récupérer le token du header ou des cookies
+    let token: string | undefined;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.headers[SECURITY.TOKEN_HEADER.toLowerCase()]) {
+      token = req.headers[SECURITY.TOKEN_HEADER.toLowerCase()] as string;
+    } else if (req.cookies && req.cookies[SECURITY.COOKIE_NAME]) {
+      token = req.cookies[SECURITY.COOKIE_NAME];
+    }
+    
+    // Si aucun token n'est trouvé, l'utilisateur n'est pas authentifié
+    if (!token) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+        authenticated: false 
       });
     }
     
-    // L'utilisateur est authentifié, retourner ses informations
-    res.status(HTTP_STATUS.OK).json({
-      user: {
-        id: req.user.id,
-        username: req.user.username,
-        name: req.user.name,
-        role: req.user.role
-      }
+    // Si un utilisateur est défini dans la requête (middleware authenticate)
+    if (req.user) {
+      return res.status(HTTP_STATUS.OK).json({
+        authenticated: true,
+        user: {
+          id: req.user.id,
+          username: req.user.username,
+          name: req.user.name,
+          role: req.user.role
+        }
+      });
+    }
+    
+    // Si aucun utilisateur n'est défini dans la requête
+    res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+      authenticated: false 
     });
   } catch (error) {
     console.error('Erreur lors de la vérification de l\'authentification:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
+      authenticated: false 
     });
   }
 }
@@ -159,16 +177,17 @@ export async function checkAuth(req: Request, res: Response) {
  */
 export async function logout(req: Request, res: Response) {
   try {
-    // Comme nous utilisons JWT, la déconnexion côté serveur n'est pas nécessaire
-    // La déconnexion est gérée côté client en supprimant le token
+    // Supprimer le cookie de session
+    res.clearCookie(SECURITY.COOKIE_NAME);
     
-    res.status(HTTP_STATUS.OK).json({
-      message: 'Déconnexion réussie'
+    // Envoyer la réponse
+    res.status(HTTP_STATUS.OK).json({ 
+      message: 'Déconnexion réussie' 
     });
   } catch (error) {
     console.error('Erreur lors de la déconnexion:', error);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
+      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR 
     });
   }
 }

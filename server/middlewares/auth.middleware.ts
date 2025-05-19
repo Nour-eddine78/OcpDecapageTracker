@@ -1,90 +1,112 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { JWT_SECRET, HTTP_STATUS, ERROR_MESSAGES } from '../config/constants';
-import { storage } from '../storage';
+import { verifyToken, isAdmin } from '../utils/auth.utils';
+import { HTTP_STATUS, ERROR_MESSAGES, SECURITY } from '../config/constants';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        username: string;
+        name: string;
+        role: string;
+      };
+    }
+  }
+}
 
 /**
- * Middleware pour vérifier l'authentification des utilisateurs
+ * Middleware d'authentification pour vérifier si l'utilisateur est connecté
  * @param req Requête Express
  * @param res Réponse Express
- * @param next Fonction next
+ * @param next Fonction de passage au middleware suivant
  */
-export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
-    // Récupérer le token depuis l'en-tête Authorization
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
-        error: ERROR_MESSAGES.MISSING_TOKEN 
-      });
+    // Récupérer le token du header ou des cookies
+    let token: string | undefined;
+    
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      // Récupérer depuis le header Authorization
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.headers[SECURITY.TOKEN_HEADER.toLowerCase()]) {
+      // Récupérer depuis un header personnalisé
+      token = req.headers[SECURITY.TOKEN_HEADER.toLowerCase()] as string;
+    } else if (req.cookies && req.cookies[SECURITY.COOKIE_NAME]) {
+      // Récupérer depuis les cookies
+      token = req.cookies[SECURITY.COOKIE_NAME];
     }
-
-    // Extraire et vérifier le token
-    const token = authHeader.split(' ')[1];
+    
+    // Vérifier si le token existe
     if (!token) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
-        error: ERROR_MESSAGES.MISSING_TOKEN 
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        error: ERROR_MESSAGES.MISSING_TOKEN
       });
     }
-
+    
     // Vérifier et décoder le token
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
-    if (!decoded || !decoded.id) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
-        error: ERROR_MESSAGES.INVALID_TOKEN 
-      });
-    }
-
-    // Récupérer l'utilisateur
-    const user = await storage.getUser(decoded.id);
-    if (!user) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
-        error: ERROR_MESSAGES.USER_NOT_FOUND 
-      });
-    }
-
-    // Ajouter l'utilisateur à l'objet requête
-    req.user = user;
+    const decoded = verifyToken(token);
+    
+    // Ajouter les informations de l'utilisateur à la requête
+    req.user = {
+      id: decoded.id,
+      username: decoded.username,
+      name: decoded.name,
+      role: decoded.role
+    };
+    
     next();
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(HTTP_STATUS.UNAUTHORIZED).json({ 
-        error: ERROR_MESSAGES.INVALID_TOKEN 
-      });
-    }
-    console.error('Erreur d\'authentification:', error);
-    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({ 
-      error: ERROR_MESSAGES.INTERNAL_SERVER_ERROR 
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: ERROR_MESSAGES.INVALID_TOKEN
     });
   }
-};
+}
 
 /**
- * Middleware pour restreindre l'accès aux administrateurs
+ * Middleware pour vérifier si l'utilisateur est administrateur
  * @param req Requête Express
  * @param res Réponse Express
- * @param next Fonction next
+ * @param next Fonction de passage au middleware suivant
  */
-export const authorizeAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(HTTP_STATUS.FORBIDDEN).json({ 
-      error: ERROR_MESSAGES.FORBIDDEN 
+export function authorizeAdmin(req: Request, res: Response, next: NextFunction) {
+  // Vérifier si l'utilisateur est authentifié
+  if (!req.user) {
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: ERROR_MESSAGES.UNAUTHORIZED
     });
   }
+  
+  // Vérifier si l'utilisateur est administrateur
+  if (req.user.role !== 'admin') {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      error: ERROR_MESSAGES.ADMIN_REQUIRED
+    });
+  }
+  
   next();
-};
+}
 
 /**
- * Middleware pour restreindre l'accès aux superviseurs et administrateurs
+ * Middleware pour vérifier si l'utilisateur est superviseur
  * @param req Requête Express
  * @param res Réponse Express
- * @param next Fonction next
+ * @param next Fonction de passage au middleware suivant
  */
-export const authorizeSupervisor = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user || (req.user.role !== 'supervisor' && req.user.role !== 'admin')) {
-    return res.status(HTTP_STATUS.FORBIDDEN).json({ 
-      error: ERROR_MESSAGES.FORBIDDEN 
+export function authorizeSupervisor(req: Request, res: Response, next: NextFunction) {
+  // Vérifier si l'utilisateur est authentifié
+  if (!req.user) {
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: ERROR_MESSAGES.UNAUTHORIZED
     });
   }
+  
+  // Vérifier si l'utilisateur est superviseur ou administrateur
+  if (req.user.role !== 'superviseur' && req.user.role !== 'admin') {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      error: 'Droits de superviseur requis pour cette action'
+    });
+  }
+  
   next();
-};
+}

@@ -1,8 +1,9 @@
 /**
- * Constantes pour l'application de gestion des opérations de décapage OCP
+ * Fichier de constantes pour l'application
+ * Centralise toutes les valeurs constantes pour faciliter la maintenance
  */
 
-// Secret JWT pour la signature des tokens
+// Secret et durée de validité des tokens JWT
 export const JWT_SECRET = process.env.JWT_SECRET || 'ocp_mining_operations_secret';
 export const JWT_EXPIRES_IN = '24h';
 
@@ -16,74 +17,55 @@ export const HTTP_STATUS = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
-  INTERNAL_SERVER_ERROR: 500
+  UNPROCESSABLE_ENTITY: 422,
+  INTERNAL_SERVER_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503
 };
 
 // Paramètres de sécurité
 export const SECURITY = {
-  SALT_ROUNDS: 10,
-  MIN_PASSWORD_LENGTH: 8,
-  TOKEN_HEADER: 'x-auth-token',
-  COOKIE_NAME: 'ocp_auth_token'
+  COOKIE_NAME: 'ocp_auth_token',
+  TOKEN_HEADER: 'X-Auth-Token',
+  SALT_ROUNDS: 10
 };
 
-// Paramètres de limitation de taux de requêtes
+// Paramètres de limitation de débit
 export const RATE_LIMIT = {
-  WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-  MAX_REQUESTS: 100,
-  MESSAGE: 'Trop de requêtes depuis cette IP, veuillez réessayer après 15 minutes'
+  LOGIN_MAX_ATTEMPTS: 5,
+  LOGIN_WINDOW_MS: 15 * 60 * 1000, // 15 minutes
+  STANDARD_WINDOW_MS: 60 * 1000, // 1 minute
+  STANDARD_MAX_REQUESTS: 100
 };
 
 // Paramètres du serveur
 export const SERVER = {
   PORT: process.env.PORT || 5000,
-  CORS_ORIGIN: process.env.NODE_ENV === 'production' ? 'https://ocp-mining-app.com' : '*',
-  CLIENT_URL: process.env.NODE_ENV === 'production' ? 'https://ocp-mining-app.com' : 'http://localhost:5000'
+  ENV: process.env.NODE_ENV || 'development'
 };
 
 // Routes API
 export const API_ROUTES = {
-  AUTH: {
-    LOGIN: '/api/auth/login',
-    REGISTER: '/api/auth/register',
-    CHECK: '/api/auth/check',
-    LOGOUT: '/api/auth/logout'
-  },
-  USERS: {
-    BASE: '/api/users',
-    BY_ID: '/api/users/:id'
-  },
-  MACHINES: {
-    BASE: '/api/machines',
-    BY_ID: '/api/machines/:id'
-  },
-  OPERATIONS: {
-    BASE: '/api/operations',
-    BY_ID: '/api/operations/:id',
-    STATS: '/api/stats',
-    PERFORMANCE: '/api/performance',
-    PROGRESS: '/api/progress',
-    VOLUME: '/api/volume'
-  },
-  SAFETY: {
-    BASE: '/api/safety',
-    BY_ID: '/api/safety/:id',
-    STATS: '/api/safety/stats'
-  }
+  AUTH: '/api/auth',
+  USERS: '/api/users',
+  MACHINES: '/api/machines',
+  OPERATIONS: '/api/operations',
+  SAFETY: '/api/safety'
 };
 
 // Messages d'erreur
 export const ERROR_MESSAGES = {
   INTERNAL_SERVER_ERROR: 'Erreur interne du serveur',
   UNAUTHORIZED: 'Non autorisé',
-  FORBIDDEN: 'Accès interdit',
-  INVALID_CREDENTIALS: 'Nom d\'utilisateur ou mot de passe incorrect',
+  ADMIN_REQUIRED: 'Droits d\'administrateur requis',
+  SUPERVISOR_REQUIRED: 'Droits de superviseur requis',
+  MISSING_TOKEN: 'Token d\'authentification manquant',
+  INVALID_TOKEN: 'Token d\'authentification invalide',
+  MISSING_CREDENTIALS: 'Identifiants manquants',
+  INVALID_CREDENTIALS: 'Identifiants invalides',
+  USER_EXISTS: 'Cet utilisateur existe déjà',
   USER_NOT_FOUND: 'Utilisateur non trouvé',
   MACHINE_NOT_FOUND: 'Machine non trouvée',
   OPERATION_NOT_FOUND: 'Opération non trouvée',
-  SAFETY_INCIDENT_NOT_FOUND: 'Incident de sécurité non trouvé',
-  INVALID_TOKEN: 'Token invalide ou expiré',
-  MISSING_TOKEN: 'Token d\'authentification manquant',
-  ADMIN_REQUIRED: 'Droits d\'administrateur requis pour cette action',
+  INCIDENT_NOT_FOUND: 'Incident de sécurité non trouvé',
   VALIDATION_ERROR: 'Erreur de validation des données'
 };
