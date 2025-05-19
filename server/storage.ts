@@ -381,4 +381,282 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database implementation of the storage interface
+import { db } from './db';
+
+export class DatabaseStorage implements IStorage {
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async deleteUser(id: number): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Machine methods
+  async getMachine(id: number): Promise<Machine | undefined> {
+    const [machine] = await db.select().from(machines).where(eq(machines.id, id));
+    return machine;
+  }
+
+  async getMachineByMachineId(machineId: string): Promise<Machine | undefined> {
+    const [machine] = await db
+      .select()
+      .from(machines)
+      .where(eq(machines.machineId, machineId));
+    return machine;
+  }
+
+  async createMachine(insertMachine: InsertMachine): Promise<Machine> {
+    const [machine] = await db.insert(machines).values(insertMachine).returning();
+    return machine;
+  }
+
+  async updateMachine(id: number, machineData: Partial<Machine>): Promise<Machine | undefined> {
+    const [updatedMachine] = await db
+      .update(machines)
+      .set(machineData)
+      .where(eq(machines.id, id))
+      .returning();
+    return updatedMachine;
+  }
+
+  async getMachines(filter?: { methode?: string }): Promise<Machine[]> {
+    if (filter?.methode && filter.methode !== "all") {
+      return await db
+        .select()
+        .from(machines)
+        .where(eq(machines.methode, filter.methode));
+    }
+    return await db.select().from(machines);
+  }
+
+  async deleteMachine(id: number): Promise<boolean> {
+    const result = await db.delete(machines).where(eq(machines.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Operation methods
+  async getOperation(id: number): Promise<Operation | undefined> {
+    const [operation] = await db.select().from(operations).where(eq(operations.id, id));
+    return operation;
+  }
+
+  async getOperationByOperationId(operationId: string): Promise<Operation | undefined> {
+    const [operation] = await db
+      .select()
+      .from(operations)
+      .where(eq(operations.operationId, operationId));
+    return operation;
+  }
+
+  async createOperation(insertOperation: InsertOperation): Promise<Operation> {
+    // Calculate performance metrics
+    const metrage = Math.round(insertOperation.volumeSaute * 0.4); // Example calculation
+    const rendement = insertOperation.heuresMarche > 0 
+      ? Math.round(metrage / insertOperation.heuresMarche) 
+      : 0;
+    const disponibilite = Math.round(
+      (insertOperation.heuresMarche / 
+        (insertOperation.heuresMarche + insertOperation.dureeArret)) * 100
+    );
+
+    const [operation] = await db
+      .insert(operations)
+      .values({
+        ...insertOperation,
+        metrage,
+        rendement,
+        disponibilite
+      })
+      .returning();
+    
+    return operation;
+  }
+
+  async updateOperation(id: number, operationData: Partial<Operation>): Promise<Operation | undefined> {
+    // Get the current operation to perform calculations
+    const [existingOperation] = await db
+      .select()
+      .from(operations)
+      .where(eq(operations.id, id));
+    
+    if (!existingOperation) return undefined;
+
+    // Recalculate metrics if relevant fields changed
+    let metrage = existingOperation.metrage;
+    let rendement = existingOperation.rendement;
+    let disponibilite = existingOperation.disponibilite;
+
+    if (operationData.volumeSaute !== undefined || 
+        operationData.heuresMarche !== undefined || 
+        operationData.dureeArret !== undefined) {
+      
+      const volumeSaute = operationData.volumeSaute !== undefined 
+        ? operationData.volumeSaute 
+        : existingOperation.volumeSaute;
+      
+      const heuresMarche = operationData.heuresMarche !== undefined 
+        ? operationData.heuresMarche 
+        : existingOperation.heuresMarche;
+      
+      const dureeArret = operationData.dureeArret !== undefined 
+        ? operationData.dureeArret 
+        : existingOperation.dureeArret;
+
+      metrage = Math.round(volumeSaute * 0.4);
+      rendement = heuresMarche > 0 ? Math.round(metrage / heuresMarche) : 0;
+      disponibilite = Math.round((heuresMarche / (heuresMarche + dureeArret)) * 100);
+    }
+
+    // Update with new calculated values
+    const [updatedOperation] = await db
+      .update(operations)
+      .set({
+        ...operationData,
+        metrage,
+        rendement,
+        disponibilite,
+        updatedAt: new Date()
+      })
+      .where(eq(operations.id, id))
+      .returning();
+    
+    return updatedOperation;
+  }
+
+  async getOperations(filter?: { methode?: string; panneau?: string }): Promise<Operation[]> {
+    let query = db.select().from(operations);
+    
+    if (filter) {
+      const conditions = [];
+      
+      if (filter.methode && filter.methode !== "all") {
+        conditions.push(eq(operations.methode, filter.methode));
+      }
+      
+      if (filter.panneau) {
+        conditions.push(like(operations.panneau, `%${filter.panneau}%`));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query;
+  }
+
+  async deleteOperation(id: number): Promise<boolean> {
+    const result = await db.delete(operations).where(eq(operations.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Safety incident methods
+  async getSafetyIncident(id: number): Promise<SafetyIncident | undefined> {
+    const [incident] = await db
+      .select()
+      .from(safetyIncidents)
+      .where(eq(safetyIncidents.id, id));
+    return incident;
+  }
+
+  async getSafetyIncidentByIncidentId(incidentId: string): Promise<SafetyIncident | undefined> {
+    const [incident] = await db
+      .select()
+      .from(safetyIncidents)
+      .where(eq(safetyIncidents.incidentId, incidentId));
+    return incident;
+  }
+
+  async createSafetyIncident(insertIncident: InsertSafetyIncident): Promise<SafetyIncident> {
+    const [incident] = await db
+      .insert(safetyIncidents)
+      .values({
+        ...insertIncident,
+        status: insertIncident.status || "Ouvert"
+      })
+      .returning();
+    return incident;
+  }
+
+  async updateSafetyIncident(id: number, incidentData: Partial<SafetyIncident>): Promise<SafetyIncident | undefined> {
+    // If status is changed to "Résolu", set resolvedAt if not provided
+    if (incidentData.status === "Résolu" && !incidentData.resolvedAt) {
+      incidentData.resolvedAt = new Date();
+    }
+
+    const [updatedIncident] = await db
+      .update(safetyIncidents)
+      .set({
+        ...incidentData,
+        updatedAt: new Date()
+      })
+      .where(eq(safetyIncidents.id, id))
+      .returning();
+    
+    return updatedIncident;
+  }
+
+  async getSafetyIncidents(filter?: { type?: string; severity?: string; status?: string }): Promise<SafetyIncident[]> {
+    let query = db.select().from(safetyIncidents);
+    
+    if (filter) {
+      const conditions = [];
+      
+      if (filter.type && filter.type !== "all") {
+        conditions.push(eq(safetyIncidents.type, filter.type));
+      }
+      
+      if (filter.severity && filter.severity !== "all") {
+        conditions.push(eq(safetyIncidents.severity, filter.severity));
+      }
+      
+      if (filter.status && filter.status !== "all") {
+        conditions.push(eq(safetyIncidents.status, filter.status));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query;
+  }
+
+  async deleteSafetyIncident(id: number): Promise<boolean> {
+    const result = await db
+      .delete(safetyIncidents)
+      .where(eq(safetyIncidents.id, id));
+    return result.rowCount > 0;
+  }
+}
+
+// Use the database storage implementation
+export const storage = new DatabaseStorage();
